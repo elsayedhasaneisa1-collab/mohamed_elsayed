@@ -472,11 +472,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   initPasswordToggles();
   initReveal();
 
-  await redirectIfLoggedIn();
+  // ⚠️ نعمل التحويل التلقائي بس في صفحات المصادقة
+  const isAuthPage = document.getElementById('loginForm') || document.getElementById('signupForm');
 
-  if (document.getElementById('loginForm')) {
-    initLoginPage();
-  } else if (document.getElementById('signupForm')) {
-    initSignupPage();
+  if (isAuthPage) {
+    await redirectIfLoggedIn();
+
+    if (document.getElementById('loginForm')) {
+      initLoginPage();
+    } else if (document.getElementById('signupForm')) {
+      initSignupPage();
+    }
   }
 });

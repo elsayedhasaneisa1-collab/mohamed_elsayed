@@ -30,11 +30,11 @@ async function guardPage(requiredRole = null) {
     }
 
     // 3) جلسة واحدة (بس لو الجدول شغال)
-    try {
-      await checkSingleSession(session, profile);
-    } catch (e) {
-      console.warn('Session check skipped:', e.message);
-    }
+    //try {
+      //await checkSingleSession(session, profile);
+//    } catch (e) {
+  //    console.warn('Session check //skipped:', e.message);
+//    }
 
     // 4) الأدمن
     if (profile.role === 'admin') {
