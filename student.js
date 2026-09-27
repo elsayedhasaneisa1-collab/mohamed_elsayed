@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
-   الصفحة الرئيسية للطالب — منصة الأستاذ محمد عيسى
+   student.js — الصفحة الرئيسية للطالب
+   منصة الأستاذ محمد عيسى
    ⚠️ $ و $$ معرّفين في auth.js
+   ⚠️ UI.confirm في ui.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -8,9 +10,7 @@
 let currentUser = null;
 let currentProfile = null;
 
-/* ═══════════════════════════════════════════════════════════════
-   الترحيب
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الترحيب ─────────────── */
 function renderWelcome() {
   const firstName = (currentProfile.full_name || '').split(' ')[0] || 'طالب';
   $('#studentName').textContent = firstName;
@@ -24,9 +24,7 @@ function renderWelcome() {
   $('#studentMeta').textContent = meta;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الإحصائيات
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الإحصائيات ─────────────── */
 async function loadStats() {
   const now = new Date().toISOString();
 
@@ -57,9 +55,7 @@ async function loadStats() {
   $('#statAvg').textContent = graded.length ? `${avg}%` : '—';
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الامتحانات المتاحة
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الامتحانات المتاحة ─────────────── */
 async function loadAvailableExams() {
   const c = document.getElementById('availableContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -162,9 +158,7 @@ function bindStartExam() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الامتحانات اللي خلصها
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الامتحانات اللي خلصها ─────────────── */
 async function loadDoneExams() {
   const c = document.getElementById('doneContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -224,9 +218,7 @@ function doneCard(a) {
   `;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   أدوات
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── أدوات ─────────────── */
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -256,9 +248,7 @@ function emptyState(icon, title, msg) {
   `;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   التهيئة
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── التهيئة ─────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
@@ -271,11 +261,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderWelcome();
 
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-    if (!confirm('تسجيل الخروج؟')) return;
-    await supabaseClient
-      .from('sessions')
-      .update({ is_active: false })
-      .eq('user_id', currentUser.id);
+    const ok = await UI.confirm({
+      type: 'warn',
+      title: 'تسجيل الخروج؟',
+      message: 'هترجع لصفحة تسجيل الدخول.',
+      confirmText: 'خروج',
+      cancelText: 'إلغاء'
+    });
+    if (!ok) return;
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
   });

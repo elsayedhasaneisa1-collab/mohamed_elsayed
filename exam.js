@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
-   شاشة الامتحان — منصة الأستاذ محمد عيسى
+   exam.js — شاشة الامتحان
+   منصة الأستاذ محمد عيسى
    ⚠️ $ و $$ معرّفين في auth.js
+   ⚠️ UI.confirm في ui.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -18,9 +20,7 @@ let cheatCount = 0;
 const MAX_CHEAT = 3;
 let examEnded = false;
 
-/* ═══════════════════════════════════════════════════════════════
-   التهيئة
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── التهيئة ─────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
@@ -37,9 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
 });
 
-/* ═══════════════════════════════════════════════════════════════
-   تحميل الامتحان
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── تحميل الامتحان ─────────────── */
 async function loadExam() {
   const params = new URLSearchParams(window.location.search);
   const examId = params.get('id');
@@ -153,9 +151,7 @@ function shuffle(arr) {
   return a;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   شاشة البدء
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── شاشة البدء ─────────────── */
 function showIntro() {
   document.getElementById('examLoading').hidden = true;
   document.getElementById('examIntro').hidden = false;
@@ -169,9 +165,7 @@ function showIntro() {
   $('#introMarks').textContent = `${totalMarks} درجة`;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   بدء الامتحان
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── بدء الامتحان ─────────────── */
 async function startExam() {
   if (!attempt) {
     const expiresAt = new Date(Date.now() + exam.duration_minutes * 60 * 1000).toISOString();
@@ -208,9 +202,7 @@ async function startExam() {
   enterFullscreen();
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   المؤقت
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── المؤقت ─────────────── */
 function startTimer() {
   updateTimerDisplay();
   timerInterval = setInterval(() => {
@@ -243,9 +235,7 @@ function updateTimerDisplay() {
   else if (totalSec <= 300) wrap?.classList.add('is-warning');
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   عرض السؤال
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── عرض السؤال ─────────────── */
 function renderQuestion() {
   const q = questions[currentIndex];
   if (!q) return;
@@ -363,9 +353,7 @@ function updateNavButtons() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   حفظ الإجابات
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── حفظ الإجابات ─────────────── */
 const saveTimers = {};
 
 function debouncedSaveAnswer(questionId) {
@@ -413,9 +401,7 @@ async function saveAllAnswers() {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   نهاية الامتحان
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── نهاية الامتحان ─────────────── */
 async function endExam(reason = 'submit') {
   if (examEnded) return;
   examEnded = true;
@@ -469,9 +455,7 @@ async function endExam(reason = 'submit') {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   منع الغش
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── منع الغش ─────────────── */
 function setupAntiCheat() {
   document.addEventListener('copy', e => { e.preventDefault(); });
   document.addEventListener('cut', e => { e.preventDefault(); });
@@ -527,9 +511,7 @@ function registerCheat(reason) {
   warning.hidden = false;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Fullscreen
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── Fullscreen ─────────────── */
 function enterFullscreen() {
   const el = document.documentElement;
   if (el.requestFullscreen) {
@@ -537,9 +519,7 @@ function enterFullscreen() {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الأحداث
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الأحداث ─────────────── */
 function setupEventListeners() {
   document.getElementById('startExamBtn')?.addEventListener('click', startExam);
 
@@ -550,14 +530,19 @@ function setupEventListeners() {
     }
   });
 
-  document.getElementById('nextBtn')?.addEventListener('click', () => {
+  document.getElementById('nextBtn')?.addEventListener('click', async () => {
     if (currentIndex < questions.length - 1) {
       currentIndex++;
       renderQuestion();
     } else {
-      if (confirm('متأكد إنك عايز تسلّم الامتحان؟')) {
-        endExam('submit');
-      }
+      const ok = await UI.confirm({
+        type: 'warn',
+        title: 'تسليم الامتحان؟',
+        message: 'لن تقدر تعدل إجاباتك بعد التسليم.',
+        confirmText: 'تسليم',
+        cancelText: 'رجوع'
+      });
+      if (ok) endExam('submit');
     }
   });
 
@@ -576,9 +561,7 @@ function setupEventListeners() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   أدوات
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── أدوات ─────────────── */
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)

@@ -3,6 +3,7 @@
    منصة الأستاذ محمد عيسى
    يدعم: الأدمن (كل الصلاحيات) + المدرس (قراءة + تنزيل PDF)
    ⚠️ $ و $$ معرّفين في auth.js
+   ⚠️ UI.confirm و UI.alert في ui.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -174,23 +175,40 @@ function bindPendingActions() {
       const card = btn.closest('.mcard');
       const name = card.querySelector('h4').textContent;
 
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
-
       try {
         if (action === 'approve') {
+          const ok = await UI.confirm({
+            type: 'success',
+            title: 'تفعيل الحساب؟',
+            message: `سيتم تفعيل حساب "${name}" ويقدر يدخل المنصة.`,
+            confirmText: 'تفعيل',
+            cancelText: 'إلغاء'
+          });
+          if (!ok) return;
+
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+
           const { error } = await supabaseClient
             .from('profiles')
             .update({ is_active: true })
             .eq('id', id);
           if (error) throw error;
           Toast.success('تم التفعيل', `تم تفعيل حساب ${name}`);
+
         } else {
-          if (!confirm(`متأكد إنك عايز ترفض وتحذف حساب "${name}"؟`)) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-xmark"></i> رفض';
-            return;
-          }
+          const ok = await UI.confirm({
+            type: 'danger',
+            title: 'رفض وحذف الحساب؟',
+            message: `سيتم حذف حساب "${name}" نهائياً. لا يمكن التراجع.`,
+            confirmText: 'حذف نهائي',
+            cancelText: 'إلغاء'
+          });
+          if (!ok) return;
+
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+
           const { error } = await supabaseClient.from('profiles').delete().eq('id', id);
           if (error) throw error;
           Toast.warn('تم الرفض', `تم حذف حساب ${name}`);
@@ -307,14 +325,31 @@ function bindStudentActions() {
       const name = card.querySelector('h4').textContent;
 
       if (action === 'toggle') {
-        if (!confirm(`إيقاف حساب "${name}"؟`)) return;
+        const ok = await UI.confirm({
+          type: 'warn',
+          title: 'إيقاف الحساب؟',
+          message: `سيتوقف "${name}" عن الدخول للمنصة. تقدر ترجعه بعدين.`,
+          confirmText: 'إيقاف',
+          cancelText: 'إلغاء'
+        });
+        if (!ok) return;
+
         const { error } = await supabaseClient.from('profiles').update({ is_active: false }).eq('id', id);
         if (error) { Toast.error('خطأ', error.message); return; }
         Toast.warn('تم الإيقاف', `تم إيقاف ${name}`);
         card.remove();
         loadStats();
+
       } else if (action === 'delete') {
-        if (!confirm(`متأكد من حذف "${name}" نهائياً؟`)) return;
+        const ok = await UI.confirm({
+          type: 'danger',
+          title: 'حذف نهائي؟',
+          message: `سيتم حذف "${name}" وكل بياناته نهائياً. لا يمكن التراجع.`,
+          confirmText: 'حذف',
+          cancelText: 'إلغاء'
+        });
+        if (!ok) return;
+
         const { error } = await supabaseClient.from('profiles').delete().eq('id', id);
         if (error) { Toast.error('خطأ', error.message); return; }
         Toast.error('تم الحذف', `تم حذف ${name}`);
@@ -417,19 +452,48 @@ function bindExamActions() {
 
       try {
         if (action === 'publish') {
+          const ok = await UI.confirm({
+            type: 'success',
+            title: 'نشر الامتحان؟',
+            message: `سيظهر "${title}" للطلاب في صفهم.`,
+            confirmText: 'نشر',
+            cancelText: 'إلغاء'
+          });
+          if (!ok) return;
+
           const { error } = await supabaseClient.from('exams').update({ status: 'published' }).eq('id', id);
           if (error) throw error;
           Toast.success('تم النشر', `تم نشر "${title}"`);
+
         } else if (action === 'close') {
+          const ok = await UI.confirm({
+            type: 'warn',
+            title: 'إغلاق الامتحان؟',
+            message: `سيتم إغلاق "${title}" ولن يقدر الطلاب يدخلوه.`,
+            confirmText: 'إغلاق',
+            cancelText: 'إلغاء'
+          });
+          if (!ok) return;
+
           const { error } = await supabaseClient.from('exams').update({ status: 'closed' }).eq('id', id);
           if (error) throw error;
           Toast.warn('تم الإغلاق', `تم إغلاق "${title}"`);
+
         } else if (action === 'delete') {
-          if (!confirm(`متأكد من حذف "${title}"؟`)) return;
+          const ok = await UI.confirm({
+            type: 'danger',
+            title: 'حذف الامتحان؟',
+            message: `سيتم حذف "${title}" وكل أسئلته ومحاولات الطلاب. لا يمكن التراجع.`,
+            confirmText: 'حذف',
+            cancelText: 'إلغاء'
+          });
+          if (!ok) return;
+
           const { error } = await supabaseClient.from('exams').delete().eq('id', id);
           if (error) throw error;
           Toast.error('تم الحذف', `تم حذف "${title}"`);
         }
+
         loadExams();
         loadStats();
       } catch (err) {
@@ -615,7 +679,16 @@ function bindPdfActions() {
         await exportAttemptPdf(attempt);
       } else if (action === 'delete') {
         if (!isAdmin) { Toast.warn('غير مصرح', 'الأدمن فقط'); return; }
-        if (!confirm('متأكد من مسح المحاولة من قاعدة البيانات؟ (الـ PDF محفوظ عندك)')) return;
+
+        const ok = await UI.confirm({
+          type: 'warn',
+          title: 'مسح من قاعدة البيانات؟',
+          message: 'الـ PDF محفوظ عندك، بس المحاولة هتتمسح من السيرفر.',
+          confirmText: 'مسح',
+          cancelText: 'إلغاء'
+        });
+        if (!ok) return;
+
         const { error } = await supabaseClient.from('attempts').delete().eq('id', id);
         if (error) { Toast.error('خطأ', error.message); return; }
         Toast.error('تم المسح', 'اتمسحت من قاعدة البيانات');
@@ -725,7 +798,14 @@ async function downloadAllPdf() {
   const notExported = cache.pdf.filter(a => !a.pdf_exported);
   const list = notExported.length ? notExported : cache.pdf;
 
-  if (!confirm(`هيتم تنزيل ${list.length} ملف PDF. متأكد؟`)) return;
+  const ok = await UI.confirm({
+    type: 'info',
+    title: 'تنزيل كل الملفات؟',
+    message: `سيتم تنزيل ${list.length} ملف PDF. قد ياخد وقت.`,
+    confirmText: 'تنزيل',
+    cancelText: 'إلغاء'
+  });
+  if (!ok) return;
 
   Toast.info('جارٍ التنزيل', `عدد الملفات: ${list.length}`);
 
@@ -760,7 +840,14 @@ async function deleteExported() {
   const toDelete = cache.pdf.filter(a => a.pdf_exported);
   if (!toDelete.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات اتنزلت'); return; }
 
-  if (!confirm(`هيتم مسح ${toDelete.length} محاولة من قاعدة البيانات. متأكد؟`)) return;
+  const ok = await UI.confirm({
+    type: 'danger',
+    title: 'مسح كل اللي اتنزل؟',
+    message: `سيتم مسح ${toDelete.length} محاولة من قاعدة البيانات.`,
+    confirmText: `مسح (${toDelete.length})`,
+    cancelText: 'إلغاء'
+  });
+  if (!ok) return;
 
   const ids = toDelete.map(a => a.id);
   const { error } = await supabaseClient.from('attempts').delete().in('id', ids);
@@ -810,11 +897,9 @@ function emptyState(icon, title, msg) {
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
-  // حماية — بدون دور محدد
   const guard = await guardPage();
   if (!guard) return;
 
-  // تأكد إنه أدمن أو مدرس
   if (guard.profile.role !== 'admin' && guard.profile.role !== 'teacher') {
     window.location.href = 'index.html';
     return;
@@ -824,7 +909,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   currentProfile = guard.profile;
   isAdmin = currentProfile.role === 'admin';
 
-  // لو مش أدمن، غيّر عنوان الصفحة
   if (!isAdmin) {
     const titleEl = document.querySelector('.admin-top__title h1');
     if (titleEl) titleEl.textContent = 'لوحة المدرس';
@@ -835,7 +919,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTabs();
 
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-    if (!confirm('تسجيل الخروج؟')) return;
+    const ok = await UI.confirm({
+      type: 'warn',
+      title: 'تسجيل الخروج؟',
+      message: 'هترجع لصفحة تسجيل الدخول.',
+      confirmText: 'خروج',
+      cancelText: 'إلغاء'
+    });
+    if (!ok) return;
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
   });

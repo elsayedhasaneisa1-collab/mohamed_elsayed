@@ -1,0 +1,186 @@
+/* ═══════════════════════════════════════════════════════════════
+   ui.css — Modal مخصص (confirm + alert)
+   منصة الأستاذ محمد عيسى
+   ═══════════════════════════════════════════════════════════════ */
+
+.ui-overlay{
+  position:fixed;inset:0;z-index:9999;
+  display:grid;place-items:center;
+  padding:20px;
+  background:rgba(4,4,4,.82);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  opacity:0;
+  transition:opacity .25s cubic-bezier(.22,.61,.36,1);
+}
+.ui-overlay.is-visible{opacity:1}
+.ui-overlay.is-closing{opacity:0}
+
+.ui-modal{
+  width:100%;max-width:420px;
+  border-radius:24px;
+  background:linear-gradient(165deg, #1a1a1a, #0a0a0a 75%);
+  border:1px solid rgba(230,184,0,.16);
+  box-shadow:
+    0 40px 90px -30px #000,
+    0 0 0 1px rgba(230,184,0,.08),
+    0 0 80px -30px rgba(230,184,0,.35);
+  position:relative;
+  overflow:hidden;
+  transform:scale(.94);
+  opacity:0;
+  transition:transform .3s cubic-bezier(.22,.61,.36,1), opacity .3s cubic-bezier(.22,.61,.36,1);
+}
+.ui-overlay.is-visible .ui-modal{
+  transform:scale(1);
+  opacity:1;
+}
+.ui-overlay.is-closing .ui-modal{
+  transform:scale(.94);
+  opacity:0;
+}
+
+.ui-modal::before{
+  content:"";position:absolute;
+  top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg, transparent, #e6b800, transparent);
+  opacity:.8;
+}
+
+.ui-modal__icon{
+  width:72px;height:72px;
+  margin:26px auto 0;
+  border-radius:24px;
+  display:grid;place-items:center;
+  font-size:1.9rem;
+  background:rgba(230,184,0,.14);
+  border:1px solid rgba(230,184,0,.16);
+  color:#ffe27a;
+  position:relative;
+}
+.ui-modal__icon::after{
+  content:"";position:absolute;inset:-6px;
+  border-radius:inherit;
+  border:1px solid #e6b800;
+  opacity:.25;
+  animation:uiRingPulse 2s infinite;
+}
+
+.ui-modal--warn .ui-modal__icon{
+  background:rgba(255,176,32,.14);
+  border-color:rgba(255,176,32,.4);
+  color:#ffb020;
+}
+.ui-modal--warn .ui-modal__icon::after{border-color:#ffb020}
+
+.ui-modal--danger .ui-modal__icon{
+  background:rgba(255,92,92,.14);
+  border-color:rgba(255,92,92,.4);
+  color:#ff5c5c;
+}
+.ui-modal--danger .ui-modal__icon::after{border-color:#ff5c5c}
+
+.ui-modal--success .ui-modal__icon{
+  background:rgba(61,220,151,.14);
+  border-color:rgba(61,220,151,.4);
+  color:#3ddc97;
+}
+.ui-modal--success .ui-modal__icon::after{border-color:#3ddc97}
+
+.ui-modal--info .ui-modal__icon{
+  background:rgba(90,200,250,.14);
+  border-color:rgba(90,200,250,.4);
+  color:#5ac8fa;
+}
+.ui-modal--info .ui-modal__icon::after{border-color:#5ac8fa}
+
+@keyframes uiRingPulse{
+  0%{transform:scale(1);opacity:.25}
+  50%{transform:scale(1.08);opacity:.1}
+  100%{transform:scale(1);opacity:.25}
+}
+
+.ui-modal__body{
+  padding:22px 26px 6px;
+  text-align:center;
+}
+.ui-modal__title{
+  font-family:'Cairo',sans-serif;
+  font-size:1.2rem;
+  font-weight:800;
+  margin-bottom:8px;
+  color:#f5f1e6;
+}
+.ui-modal__message{
+  font-size:.9rem;
+  color:#c9c4b6;
+  line-height:1.7;
+  max-width:34ch;
+  margin-inline:auto;
+}
+
+.ui-modal__actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  padding:20px 22px 22px;
+}
+.ui-modal__actions--single{
+  grid-template-columns:1fr;
+}
+
+.ui-modal__btn{
+  padding:13px 18px;
+  border-radius:14px;
+  font-family:'Cairo',sans-serif;
+  font-weight:700;
+  font-size:.92rem;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  transition:transform .25s cubic-bezier(.22,.61,.36,1), box-shadow .3s, background .3s, color .3s, border-color .3s;
+  border:1px solid transparent;
+  position:relative;
+  overflow:hidden;
+  cursor:pointer;
+  color:inherit;
+  background:none;
+}
+.ui-modal__btn:active{transform:scale(.97)}
+
+.ui-modal__btn--confirm{
+  background:linear-gradient(135deg, #ffe27a, #e6b800 55%, #8a6a00);
+  color:#12100a;
+  box-shadow:0 8px 22px -10px rgba(230,184,0,.75);
+}
+.ui-modal__btn--confirm:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 30px -12px rgba(230,184,0,.9);
+}
+
+.ui-modal--danger .ui-modal__btn--confirm{
+  background:linear-gradient(135deg, #ff8a8a, #d32f2f);
+  color:#fff;
+  box-shadow:0 8px 22px -10px rgba(255,92,92,.75);
+}
+.ui-modal--danger .ui-modal__btn--confirm:hover{
+  box-shadow:0 14px 30px -12px rgba(255,92,92,.9);
+}
+
+.ui-modal__btn--cancel{
+  background:rgba(255,255,255,.04);
+  border-color:rgba(255,255,255,.08);
+  color:#c9c4b6;
+}
+.ui-modal__btn--cancel:hover{
+  background:rgba(255,255,255,.08);
+  color:#f5f1e6;
+  border-color:rgba(230,184,0,.16);
+}
+
+@media(max-width:420px){
+  .ui-modal__actions{grid-template-columns:1fr}
+  .ui-modal__icon{width:64px;height:64px;font-size:1.6rem}
+  .ui-modal__title{font-size:1.1rem}
+}
