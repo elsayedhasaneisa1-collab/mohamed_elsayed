@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="منصة عيسى">
+<title>تسجيل الدخول | منصة الأستاذ محمد عيسى</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="auth.css">
+</head>
+<body class="page-auth">
+
+<div class="bg-stage">
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-vignette"></div>
+</div>
+
+<main class="auth-wrap">
+
+  <div class="auth-card reveal">
+
+    <div class="auth-card__top">
+      <a href="#" class="brand">
+        <span class="brand__mark">
+          <i class="fa-solid fa-graduation-cap"></i>
+        </span>
+        <span class="brand__text">
+          <strong>الأستاذ محمد عيسى</strong>
+          <small>مدرس اللغة العربية</small>
+        </span>
+      </a>
+      <h1>مرحباً بعودتك 👋</h1>
+      <p>سجل دخولك للمتابعة</p>
+    </div>
+
+    <div class="auth-card__body">
+
+      <form id="loginForm" class="form-grid" novalidate>
+
+        <div class="field" data-field="username">
+          <label class="field__label" for="loginUsername">
+            <i class="fa-solid fa-user"></i>
+            اسم المستخدم
+          </label>
+          <div class="field__wrap">
+            <i class="fa-solid fa-user lead"></i>
+            <input
+              type="text"
+              id="loginUsername"
+              class="field__input"
+              placeholder="اسم المستخدم"
+              autocomplete="username"
+              required>
+          </div>
+          <small class="field__err">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <span>من فضلك أدخل اسم المستخدم</span>
+          </small>
+        </div>
+
+        <div class="field" data-field="password">
+          <label class="field__label" for="loginPassword">
+            <i class="fa-solid fa-lock"></i>
+            كلمة السر
+          </label>
+          <div class="field__wrap">
+            <i class="fa-solid fa-lock lead"></i>
+            <input
+              type="password"
+              id="loginPassword"
+              class="field__input"
+              placeholder="••••••••"
+              autocomplete="current-password"
+              required>
+            <button type="button" class="field__toggle" data-toggle="loginPassword" aria-label="إظهار كلمة السر">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          <small class="field__err">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <span>من فضلك أدخل كلمة السر</span>
+          </small>
+        </div>
+
+        <div class="login-extra">
+          <label class="check-row check-row--sm">
+            <input type="checkbox" id="rememberMe">
+            <i class="fa-solid fa-check box"></i>
+            <span>تذكرني</span>
+          </label>
+
+          <a href="https://t.me/sayoda_elgadar"
+             target="_blank"
+             rel="noopener"
+             class="forgot-link">
+            <i class="fa-solid fa-circle-question"></i>
+            نسيت كلمة السر؟
+          </a>
+        </div>
+
+        <button type="submit" class="btn btn--gold btn--lg btn--block" id="loginBtn">
+          <span class="btn__text">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            تسجيل الدخول
+          </span>
+          <span class="btn__loader" hidden>
+            <i class="fa-solid fa-circle-notch fa-spin"></i>
+            جارٍ الدخول...
+          </span>
+        </button>
+
+      </form>
+
+      <div class="auth-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>حسابك لازم يكون <strong style="color:var(--gold-2)">مفعّل من الإدارة</strong> قبل ما تقدر تسجل دخولك.</span>
+      </div>
+
+    </div>
+
+    <div class="auth-card__foot">
+      <p>
+        معندكش حساب؟
+        <a href="signup.html">أنشئ حساب جديد</a>
+      </p>
+    </div>
+
+  </div>
+
+  <footer class="site-footer">
+    <p class="site-footer__made">
+      صُنع بواسطة
+      <a href="https://t.me/sayoda_elgadar" target="_blank" rel="noopener" class="maker-link">
+        EL-sayed Hasan
+      </a>
+    </p>
+  </footer>
+
+</main>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+</body>
+</html>

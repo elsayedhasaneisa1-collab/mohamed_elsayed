@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>الرئيسية | منصة الأستاذ محمد عيسى</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="auth.css">
+<link rel="stylesheet" href="student.css">
+</head>
+<body class="page-student">
+
+<div class="bg-stage">
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-vignette"></div>
+</div>
+
+<header class="student-top">
+  <a href="index.html" class="brand">
+    <span class="brand__mark"><i class="fa-solid fa-graduation-cap"></i></span>
+    <span class="brand__text">
+      <strong>الأستاذ محمد عيسى</strong>
+      <small>مدرس اللغة العربية</small>
+    </span>
+  </a>
+  <button class="btn btn--line btn--sm" id="logoutBtn">
+    <i class="fa-solid fa-right-from-bracket"></i>
+    خروج
+  </button>
+</header>
+
+<main class="student-shell">
+
+  <section class="welcome">
+    <h1>أهلاً، <span id="studentName">—</span> 👋</h1>
+    <p id="studentMeta">—</p>
+  </section>
+
+  <div class="student-stats">
+    <div class="sstat">
+      <div class="sstat__ic"><i class="fa-solid fa-file-pen"></i></div>
+      <b id="statAvailable">—</b>
+      <span>امتحانات متاحة</span>
+    </div>
+    <div class="sstat">
+      <div class="sstat__ic"><i class="fa-solid fa-circle-check"></i></div>
+      <b id="statDone">—</b>
+      <span>خلصتها</span>
+    </div>
+    <div class="sstat">
+      <div class="sstat__ic"><i class="fa-solid fa-chart-line"></i></div>
+      <b id="statAvg">—</b>
+      <span>المتوسط</span>
+    </div>
+  </div>
+
+  <section class="student-section">
+    <h2><i class="fa-solid fa-fire"></i> امتحانات متاحة</h2>
+    <div id="availableContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <section class="student-section">
+    <h2><i class="fa-solid fa-check-double"></i> امتحانات خلصتها</h2>
+    <div id="doneContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottom-bar">
+  <a href="index.html" class="bottom-bar__btn is-active">
+    <i class="fa-solid fa-house"></i>
+    <span>الرئيسية</span>
+  </a>
+  <a href="#available" class="bottom-bar__btn">
+    <i class="fa-solid fa-file-pen"></i>
+    <span>الامتحانات</span>
+  </a>
+  <a href="#done" class="bottom-bar__btn">
+    <i class="fa-solid fa-chart-line"></i>
+    <span>درجاتي</span>
+  </a>
+</nav>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="student.js"></script>
+</body>
+</html>

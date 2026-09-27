@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>لوحة التحكم | منصة الأستاذ محمد عيسى</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="auth.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="page-admin">
+
+<div class="bg-stage">
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-vignette"></div>
+</div>
+
+<!-- حارس الأدمن -->
+<div class="guard-screen" id="guardScreen" hidden>
+  <div class="guard-screen__box">
+    <i class="fa-solid fa-shield-halved big"></i>
+    <h2>غير مصرح</h2>
+    <p>هذه الصفحة مخصصة للمدير فقط</p>
+    <a href="login.html" class="btn btn--gold">الرجوع لتسجيل الدخول</a>
+  </div>
+</div>
+
+<!-- الهيدر -->
+<header class="admin-top">
+  <a href="admin.html" class="brand">
+    <span class="brand__mark"><i class="fa-solid fa-graduation-cap"></i></span>
+    <span class="brand__text">
+      <strong>الأستاذ محمد عيسى</strong>
+      <small>لوحة التحكم</small>
+    </span>
+  </a>
+  <div class="admin-top__title">
+    <h1>لوحة التحكم</h1>
+    <small>إدارة المنصة</small>
+  </div>
+  <button class="icon-btn" id="refreshBtn" title="تحديث">
+    <i class="fa-solid fa-rotate"></i>
+  </button>
+  <button class="btn btn--line btn--sm" id="logoutBtn">
+    <i class="fa-solid fa-right-from-bracket"></i>
+    خروج
+  </button>
+</header>
+
+<main class="admin-shell">
+
+  <!-- الإحصائيات -->
+  <div class="admin-stats" id="statsGrid">
+    <div class="astat">
+      <div class="astat__ic"><i class="fa-solid fa-user-clock"></i></div>
+      <b id="statPending">—</b>
+      <span>قيد المراجعة</span>
+    </div>
+    <div class="astat">
+      <div class="astat__ic"><i class="fa-solid fa-users"></i></div>
+      <b id="statStudents">—</b>
+      <span>طلاب مفعّلين</span>
+    </div>
+    <div class="astat">
+      <div class="astat__ic"><i class="fa-solid fa-file-pen"></i></div>
+      <b id="statExams">—</b>
+      <span>امتحانات</span>
+    </div>
+    <div class="astat">
+      <div class="astat__ic"><i class="fa-solid fa-clock-rotate-left"></i></div>
+      <b id="statAttempts">—</b>
+      <span>محاولات</span>
+    </div>
+    <div class="astat">
+      <div class="astat__ic"><i class="fa-solid fa-file-pdf"></i></div>
+      <b id="statPdf">—</b>
+      <span>PDF جاهز</span>
+    </div>
+    <div class="astat">
+      <div class="astat__ic"><i class="fa-solid fa-hourglass-half"></i></div>
+      <b id="statLive">—</b>
+      <span>امتحانات مفتوحة</span>
+    </div>
+  </div>
+
+  <!-- التبويبات -->
+  <div class="admin-tabs" role="tablist">
+    <button class="admin-tabs__btn is-active" data-tab="pending">
+      <i class="fa-solid fa-user-clock"></i>
+      قيد المراجعة
+      <span class="cnt" id="cntPending">0</span>
+    </button>
+    <button class="admin-tabs__btn" data-tab="students">
+      <i class="fa-solid fa-users"></i>
+      الطلاب
+      <span class="cnt" id="cntStudents">0</span>
+    </button>
+    <button class="admin-tabs__btn" data-tab="exams">
+      <i class="fa-solid fa-file-pen"></i>
+      الامتحانات
+      <span class="cnt" id="cntExams">0</span>
+    </button>
+    <button class="admin-tabs__btn" data-tab="attempts">
+      <i class="fa-solid fa-file-circle-check"></i>
+      المحاولات
+      <span class="cnt" id="cntAttempts">0</span>
+    </button>
+    <button class="admin-tabs__btn" data-tab="pdf">
+      <i class="fa-solid fa-file-pdf"></i>
+      تنزيل PDF
+      <span class="cnt" id="cntPdf">0</span>
+    </button>
+  </div>
+
+  <!-- 1. قيد المراجعة -->
+  <section class="admin-panel is-active" data-panel="pending">
+    <div class="panel-head">
+      <div>
+        <h2>حسابات قيد المراجعة</h2>
+        <p>وافق أو ارفض الحسابات الجديدة</p>
+      </div>
+      <div class="panel-tools">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="searchPending" placeholder="ابحث باسم المستخدم أو الاسم...">
+        </div>
+      </div>
+    </div>
+    <div id="pendingContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <!-- 2. الطلاب -->
+  <section class="admin-panel" data-panel="students">
+    <div class="panel-head">
+      <div>
+        <h2>الطلاب المفعّلين</h2>
+        <p>كل الطلاب اللي تم تفعيلهم</p>
+      </div>
+      <div class="panel-tools">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="searchStudents" placeholder="ابحث...">
+        </div>
+        <select class="field__input" id="filterGrade" style="min-width:160px;padding:11px 14px;">
+          <option value="">كل الصفوف</option>
+          <option value="الأول الإعدادي">الأول الإعدادي</option>
+          <option value="الثاني الإعدادي">الثاني الإعدادي</option>
+          <option value="الثالث الإعدادي">الثالث الإعدادي</option>
+          <option value="الأول الثانوي">الأول الثانوي</option>
+          <option value="الثاني الثانوي">الثاني الثانوي</option>
+          <option value="الثالث الثانوي">الثالث الثانوي</option>
+        </select>
+      </div>
+    </div>
+    <div id="studentsContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <!-- 3. الامتحانات -->
+  <section class="admin-panel" data-panel="exams">
+    <div class="panel-head">
+      <div>
+        <h2>الامتحانات</h2>
+        <p>إنشاء وإدارة الامتحانات</p>
+      </div>
+      <div class="panel-tools">
+        <button class="btn btn--gold btn--sm" id="newExamBtn">
+          <i class="fa-solid fa-plus"></i>
+          امتحان جديد
+        </button>
+      </div>
+    </div>
+    <div id="examsContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <!-- 4. المحاولات -->
+  <section class="admin-panel" data-panel="attempts">
+    <div class="panel-head">
+      <div>
+        <h2>محاولات الطلاب</h2>
+        <p>كل محاولات الامتحانات</p>
+      </div>
+      <div class="panel-tools">
+        <select class="field__input" id="filterAttempts" style="min-width:180px;padding:11px 14px;">
+          <option value="all">الكل</option>
+          <option value="submitted">تم التسليم</option>
+          <option value="in_progress">قيد الحل</option>
+          <option value="graded">تم التصحيح</option>
+          <option value="expired">منتهي</option>
+        </select>
+      </div>
+    </div>
+    <div id="attemptsContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <!-- 5. تنزيل PDF -->
+  <section class="admin-panel" data-panel="pdf">
+    <div class="panel-head">
+      <div>
+        <h2>تنزيل PDF</h2>
+        <p>نزّل إجابات الطلاب PDF — <strong style="color:var(--gold-2)">لازم تنزّل قبل المسح</strong></p>
+      </div>
+      <div class="panel-tools">
+        <button class="btn btn--gold btn--sm" id="downloadAllPdfBtn">
+          <i class="fa-solid fa-download"></i>
+          تنزيل الكل
+        </button>
+        <button class="btn btn--danger btn--sm" id="deleteExportedBtn" disabled>
+          <i class="fa-solid fa-trash"></i>
+          مسح اللي اتنزل
+        </button>
+      </div>
+    </div>
+
+    <div class="pdf-notice">
+      <i class="fa-solid fa-circle-info"></i>
+      <div>
+        <strong>مهم جداً</strong>
+        <p>مش هتقدر تمسح أي محاولة من قاعدة البيانات غير لما تنزّل الـ PDF بتاعها الأول.</p>
+      </div>
+    </div>
+
+    <div id="pdfContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+<script src="auth.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

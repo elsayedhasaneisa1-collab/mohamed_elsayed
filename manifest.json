@@ -1,0 +1,36 @@
+{
+  "name": "منصة الأستاذ محمد عيسى",
+  "short_name": "منصة عيسى",
+  "description": "منصة تعليمية لمتابعة الامتحانات والدرجات — الأستاذ محمد عيسى",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#e6b800",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["education"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "الامتحانات",
+      "short_name": "امتحانات",
+      "url": "/index.html#available",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
