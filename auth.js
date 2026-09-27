@@ -5,18 +5,16 @@
 
 'use strict';
 
-/* ─────────────── إعداد Supabase ─────────────── */
 const SUPABASE_URL = 'https://tqtaxueaemetovamewkf.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TIbJWVuDK8VNC07JxaL6KQ_XZdiO9Od';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* ─────────────── ثوابت ─────────────── */
 const TG_LINK = 'https://t.me/sayoda_elgadar';
 const GRADES_THANWY = ['الأول الثانوي', 'الثاني الثانوي', 'الثالث الثانوي'];
 
 /* ═══════════════════════════════════════════════════════════════
-   Toast Notifications
+   Toast
    ═══════════════════════════════════════════════════════════════ */
 const Toast = {
   stack: null,
@@ -99,6 +97,11 @@ const Validators = {
     if (v.length < 6) return { ok: false, msg: 'كلمة السر 6 أحرف على الأقل' };
     return { ok: true };
   },
+  phone(v) {
+    if (!v) return { ok: false, msg: 'من فضلك أدخل رقم هاتفك' };
+    if (!/^01[0125][0-9]{8}$/.test(v)) return { ok: false, msg: 'رقم الهاتف غير صالح (11 رقم يبدأ بـ 01)' };
+    return { ok: true };
+  },
   parentPhone(v) {
     if (!v) return { ok: false, msg: 'من فضلك أدخل رقم ولي الأمر' };
     if (!/^01[0125][0-9]{8}$/.test(v)) return { ok: false, msg: 'رقم ولي الأمر غير صالح (11 رقم يبدأ بـ 01)' };
@@ -122,9 +125,7 @@ function passwordStrength(pwd) {
 }
 const STRENGTH_LABELS = ['—', 'ضعيف', 'متوسط', 'قوي', 'قوي جداً'];
 
-/* ═══════════════════════════════════════════════════════════════
-   زرار إظهار كلمة السر
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── زرار العين ─────────────── */
 function initPasswordToggles() {
   $$('.field__toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -152,12 +153,10 @@ function initLoginPage() {
   const btn = document.getElementById('loginBtn');
 
   usernameInput?.addEventListener('blur', () => {
-    const field = usernameInput.closest('.field');
-    setFieldState(field, usernameInput.value.trim() ? 'ok' : 'invalid');
+    setFieldState(usernameInput.closest('.field'), usernameInput.value.trim() ? 'ok' : 'invalid');
   });
   passwordInput?.addEventListener('blur', () => {
-    const field = passwordInput.closest('.field');
-    setFieldState(field, passwordInput.value ? 'ok' : 'invalid');
+    setFieldState(passwordInput.closest('.field'), passwordInput.value ? 'ok' : 'invalid');
   });
 
   form.addEventListener('submit', async (e) => {
@@ -175,20 +174,16 @@ function initLoginPage() {
 
     try {
       const email = `${username}@manassa.local`;
-
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
       if (error) {
         let msg = 'اسم المستخدم أو كلمة السر غير صحيحة';
-        if (error.message?.includes('Email not confirmed')) {
-          msg = 'الإيميل لسه ما اتفعلش';
-        }
+        if (error.message?.includes('Email not confirmed')) msg = 'الإيميل لسه ما اتفعلش';
         Toast.error('فشل تسجيل الدخول', msg);
         setBtnLoading(btn, false);
         return;
       }
 
-      // نجيب الدور + حالة التفعيل
       const { data: profileData } = await supabaseClient
         .from('profiles')
         .select('role, is_active')
@@ -198,14 +193,12 @@ function initLoginPage() {
       const role = profileData?.role || 'student';
       const isActive = profileData?.is_active === true;
 
-      // الأدمن يدخل على طول
       if (role === 'admin') {
         Toast.success('أهلاً بيك 👋', 'جارٍ التحويل...');
         setTimeout(() => { window.location.href = 'admin.html'; }, 900);
         return;
       }
 
-      // الطالب: لازم يكون مفعّل
       if (!isActive) {
         await supabaseClient.auth.signOut();
         Toast.warn('حسابك قيد المراجعة ⏳', 'هيتم تفعيل حسابك قريباً من قِبل الإدارة');
@@ -234,6 +227,7 @@ function initSignupPage() {
   const usernameInput    = document.getElementById('signupUsername');
   const fullnameInput    = document.getElementById('signupFullname');
   const passwordInput    = document.getElementById('signupPassword');
+  const phoneInput       = document.getElementById('signupPhone');
   const parentPhoneInput = document.getElementById('signupParentPhone');
   const gradeSelect      = document.getElementById('signupGrade');
   const termsCheckbox    = document.getElementById('signupTerms');
@@ -263,6 +257,13 @@ function initSignupPage() {
     strengthText.textContent = STRENGTH_LABELS[level];
     setFieldState(passwordInput.closest('.field'),
       pwd ? (pwd.length >= 6 ? 'ok' : 'invalid') : null);
+  });
+
+  phoneInput?.addEventListener('input', () => {
+    phoneInput.value = phoneInput.value.replace(/\D/g, '').slice(0, 11);
+    const res = Validators.phone(phoneInput.value);
+    setFieldState(phoneInput.closest('.field'),
+      phoneInput.value ? (res.ok ? 'ok' : 'invalid') : null);
   });
 
   parentPhoneInput?.addEventListener('input', () => {
@@ -306,6 +307,7 @@ function initSignupPage() {
     const username    = usernameInput.value.trim();
     const fullname    = fullnameInput.value.trim();
     const password    = passwordInput.value;
+    const phone       = phoneInput.value.trim();
     const parentPhone = parentPhoneInput.value.trim();
     const grade       = gradeSelect.value;
     const type        = document.querySelector('input[name="type"]:checked')?.value || null;
@@ -323,6 +325,9 @@ function initSignupPage() {
 
     const pRes = Validators.password(password);
     if (!pRes.ok) { setFieldState(passwordInput.closest('.field'), 'invalid'); errs.push(pRes.msg); valid = false; }
+
+    const phoneRes = Validators.phone(phone);
+    if (!phoneRes.ok) { setFieldState(phoneInput.closest('.field'), 'invalid'); errs.push(phoneRes.msg); valid = false; }
 
     const phRes = Validators.parentPhone(parentPhone);
     if (!phRes.ok) { setFieldState(parentPhoneInput.closest('.field'), 'invalid'); errs.push(phRes.msg); valid = false; }
@@ -370,6 +375,7 @@ function initSignupPage() {
           data: {
             username,
             full_name: fullname,
+            phone,
             parent_phone: parentPhone,
             grade,
             type,
@@ -387,7 +393,6 @@ function initSignupPage() {
         return;
       }
 
-      // تأكد من وجود profile
       if (authData?.user?.id) {
         const { data: profileCheck } = await supabaseClient
           .from('profiles')
@@ -400,6 +405,7 @@ function initSignupPage() {
             id: authData.user.id,
             username,
             full_name: fullname,
+            phone,
             parent_phone: parentPhone,
             grade,
             type,
@@ -423,9 +429,7 @@ function initSignupPage() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Reveal
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── Reveal ─────────────── */
 function initReveal() {
   requestAnimationFrame(() => {
     $$('.reveal').forEach(el => {
@@ -434,9 +438,7 @@ function initReveal() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   تحويل لو داخل بالفعل
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── تحويل لو داخل ─────────────── */
 async function redirectIfLoggedIn() {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session) return;
@@ -455,9 +457,7 @@ async function redirectIfLoggedIn() {
   window.location.href = 'index.html';
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   PWA Service Worker
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── Service Worker ─────────────── */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js')
@@ -466,9 +466,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   التهيئة
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── التهيئة ─────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
   initPasswordToggles();

@@ -135,6 +135,36 @@
           </small>
         </div>
 
+        <!-- رقم هاتف الطالب -->
+        <div class="field field--full" data-field="phone">
+          <label class="field__label" for="signupPhone">
+            <i class="fa-solid fa-mobile-screen"></i>
+            رقم هاتفك <span class="req">*</span>
+          </label>
+          <div class="field__wrap">
+            <i class="fa-solid fa-mobile-screen lead"></i>
+            <input
+              type="tel"
+              id="signupPhone"
+              class="field__input"
+              placeholder="01xxxxxxxxx"
+              autocomplete="tel"
+              dir="ltr"
+              inputmode="numeric"
+              maxlength="11"
+              required>
+          </div>
+          <small class="field__hint">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>11 رقم — يبدأ بـ 01</span>
+          </small>
+          <small class="field__err">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <span>رقم الهاتف غير صالح</span>
+          </small>
+        </div>
+
+        <!-- رقم ولي الأمر -->
         <div class="field field--full" data-field="parent_phone">
           <label class="field__label" for="signupParentPhone">
             <i class="fa-solid fa-phone"></i>

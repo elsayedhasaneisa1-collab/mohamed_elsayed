@@ -124,9 +124,10 @@ function pendingCard(p) {
       </div>
       <div class="mcard__rows">
         <div><b>المستخدم:</b> <span dir="ltr">${escapeHtml(p.username)}</span></div>
+        <div><b>هاتف الطالب:</b> <span dir="ltr">${escapeHtml(p.phone || '—')}</span></div>
+        <div><b>ولي الأمر:</b> <span dir="ltr">${escapeHtml(p.parent_phone || '—')}</span></div>
         <div><b>الصف:</b> ${escapeHtml(p.grade)}</div>
         <div><b>النوع:</b> ${escapeHtml(p.type)}${p.branch ? ' - ' + escapeHtml(p.branch) : ''}</div>
-        <div><b>ولي الأمر:</b> <span dir="ltr">${escapeHtml(p.parent_phone || '—')}</span></div>
         <div><b>التسجيل:</b> ${formatDate(p.created_at)}</div>
       </div>
       <div class="mcard__acts">
@@ -161,7 +162,6 @@ function bindPendingActions() {
           if (error) throw error;
           Toast.success('تم التفعيل', `تم تفعيل حساب ${name}`);
         } else {
-          // رفض = حذف الحساب نهائياً
           if (!confirm(`متأكد إنك عايز ترفض وتحذف حساب "${name}"؟`)) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-xmark"></i> رفض';
@@ -219,7 +219,8 @@ function renderStudents() {
   let list = cache.students;
   if (q) list = list.filter(s =>
     s.username.toLowerCase().includes(q) ||
-    s.full_name.toLowerCase().includes(q)
+    s.full_name.toLowerCase().includes(q) ||
+    (s.phone || '').includes(q)
   );
   if (grade) list = list.filter(s => s.grade === grade);
 
@@ -241,9 +242,10 @@ function studentCard(s) {
       </div>
       <div class="mcard__rows">
         <div><b>المستخدم:</b> <span dir="ltr">${escapeHtml(s.username)}</span></div>
+        <div><b>هاتف الطالب:</b> <span dir="ltr">${escapeHtml(s.phone || '—')}</span></div>
+        <div><b>ولي الأمر:</b> <span dir="ltr">${escapeHtml(s.parent_phone || '—')}</span></div>
         <div><b>الصف:</b> ${escapeHtml(s.grade)}</div>
         <div><b>النوع:</b> ${escapeHtml(s.type)}${s.branch ? ' - ' + escapeHtml(s.branch) : ''}</div>
-        <div><b>ولي الأمر:</b> <span dir="ltr">${escapeHtml(s.parent_phone || '—')}</span></div>
       </div>
       <div class="mcard__acts">
         <button class="btn btn--line btn--sm" data-action="toggle" data-id="${s.id}">
@@ -450,7 +452,7 @@ function attemptCard(a) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   5. PDF — تنزيل + مسح
+   5. PDF
    ═══════════════════════════════════════════════════════════════ */
 async function loadPdfList() {
   const c = document.getElementById('pdfContainer');
@@ -460,7 +462,7 @@ async function loadPdfList() {
     .from('attempts')
     .select(`
       *,
-      profiles:student_id (full_name, username, grade, parent_phone),
+      profiles:student_id (full_name, username, grade, phone, parent_phone),
       exams:exam_id (title, total_marks)
     `)
     .in('status', ['submitted', 'graded'])
@@ -547,7 +549,6 @@ function bindPdfActions() {
 async function exportAttemptPdf(attempt) {
   const { jsPDF } = window.jspdf;
 
-  // نجيب الإجابات
   const { data: answers, error } = await supabaseClient
     .from('answers')
     .select(`
@@ -566,7 +567,6 @@ async function exportAttemptPdf(attempt) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   doc.setFont('helvetica');
 
-  // العنوان
   doc.setFontSize(18);
   doc.text('Exam Answers Report', 105, 20, { align: 'center' });
 
@@ -574,13 +574,13 @@ async function exportAttemptPdf(attempt) {
   doc.text(`Student: ${student.full_name || '-'}`, 15, 35);
   doc.text(`Username: ${student.username || '-'}`, 15, 42);
   doc.text(`Grade: ${student.grade || '-'}`, 15, 49);
-  doc.text(`Parent Phone: ${student.parent_phone || '-'}`, 15, 56);
+  doc.text(`Student Phone: ${student.phone || '-'}`, 15, 56);
+  doc.text(`Parent Phone: ${student.parent_phone || '-'}`, 15, 63);
 
-  doc.text(`Exam: ${exam.title || '-'}`, 15, 68);
-  doc.text(`Score: ${attempt.score ?? 0} / ${attempt.total_marks ?? 0}`, 15, 75);
-  doc.text(`Submitted: ${formatDate(attempt.submitted_at)}`, 15, 82);
+  doc.text(`Exam: ${exam.title || '-'}`, 15, 75);
+  doc.text(`Score: ${attempt.score ?? 0} / ${attempt.total_marks ?? 0}`, 15, 82);
+  doc.text(`Submitted: ${formatDate(attempt.submitted_at)}`, 15, 89);
 
-  // الجدول
   const rows = (answers || []).map((ans, i) => {
     const q = ans.questions || {};
     const isMcq = q.question_type === 'mcq';
@@ -596,7 +596,7 @@ async function exportAttemptPdf(attempt) {
   });
 
   doc.autoTable({
-    startY: 92,
+    startY: 99,
     head: [['#', 'Question', 'Type', 'Answer', 'Awarded', 'Max']],
     body: rows,
     styles: { fontSize: 9, cellPadding: 2 },
@@ -612,7 +612,6 @@ async function exportAttemptPdf(attempt) {
     }
   });
 
-  // التذييل
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -623,12 +622,10 @@ async function exportAttemptPdf(attempt) {
     );
   }
 
-  // نحفظ
   const safeName = (student.username || 'student').replace(/[^a-z0-9_]/gi, '_');
   const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
   doc.save(`${safeName}_${safeExam}_${Date.now()}.pdf`);
 
-  // نحدّث قاعدة البيانات
   const { error: upErr } = await supabaseClient
     .from('attempts')
     .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
@@ -644,7 +641,6 @@ async function exportAttemptPdf(attempt) {
   loadStats();
 }
 
-/* ─────────────── تنزيل الكل ─────────────── */
 async function downloadAllPdf() {
   if (!cache.pdf.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات'); return; }
 
@@ -667,7 +663,6 @@ async function downloadAllPdf() {
   Toast.success('خلص التنزيل', `${list.length} ملف اتنزلوا`);
 }
 
-/* ─────────────── مسح اللي اتنزل ─────────────── */
 function updateDeleteBtn() {
   const btn = document.getElementById('deleteExportedBtn');
   if (!btn) return;
@@ -734,14 +729,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ok = await guardAdmin();
   if (!ok) return;
 
-  // زرار الخروج
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     if (!confirm('تسجيل الخروج؟')) return;
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
   });
 
-  // تحديث
   document.getElementById('refreshBtn')?.addEventListener('click', () => {
     loadStats();
     loadPending();
@@ -752,7 +745,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     Toast.info('تم التحديث', '');
   });
 
-  // بحث
   document.getElementById('searchPending')?.addEventListener('input', () => {
     const q = document.getElementById('searchPending').value.toLowerCase();
     $$('#pendingContainer .mcard').forEach(card => {
@@ -765,16 +757,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('filterGrade')?.addEventListener('change', renderStudents);
   document.getElementById('filterAttempts')?.addEventListener('change', renderAttempts);
 
-  // PDF
   document.getElementById('downloadAllPdfBtn')?.addEventListener('click', downloadAllPdf);
   document.getElementById('deleteExportedBtn')?.addEventListener('click', deleteExported);
 
-  // امتحان جديد
   document.getElementById('newExamBtn')?.addEventListener('click', () => {
     Toast.info('قريباً', 'إنشاء الامتحانات هيتضاف في التحديث القادم');
   });
 
-  // تحميل البيانات
   loadStats();
   loadPending();
   loadStudents();
