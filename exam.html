@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>الامتحان | منصة الأستاذ محمد عيسى</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="auth.css">
+<link rel="stylesheet" href="exam.css">
+</head>
+<body class="page-exam">
+
+<div class="bg-stage">
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-vignette"></div>
+</div>
+
+<!-- شاشة التحميل -->
+<div class="exam-loading" id="examLoading">
+  <div class="loader"><span></span><span></span><span></span></div>
+  <p>جارٍ تحميل الامتحان...</p>
+</div>
+
+<!-- شاشة البدء -->
+<div class="exam-intro" id="examIntro" hidden>
+  <div class="exam-intro__box">
+    <div class="exam-intro__icon"><i class="fa-solid fa-file-pen"></i></div>
+    <h1 id="introTitle">—</h1>
+    <p id="introDesc">—</p>
+    <div class="exam-intro__info">
+      <div><i class="fa-solid fa-clock"></i> <span id="introDuration">—</span></div>
+      <div><i class="fa-solid fa-list-ol"></i> <span id="introCount">—</span></div>
+      <div><i class="fa-solid fa-star"></i> <span id="introMarks">—</span></div>
+    </div>
+    <div class="exam-intro__rules">
+      <h3><i class="fa-solid fa-triangle-exclamation"></i> تعليمات مهمة</h3>
+      <ul>
+        <li>الامتحان هيتوقف تلقائياً عند انتهاء الوقت</li>
+        <li>ممنوع الخروج من الشاشة — هيتم تسجيل أي محاولة غش</li>
+        <li>ممنوع النسخ أو اللصق</li>
+        <li>لازم تسلّم الإجابات قبل انتهاء الوقت</li>
+      </ul>
+    </div>
+    <button class="btn btn--gold btn--lg btn--block" id="startExamBtn">
+      <i class="fa-solid fa-play"></i>
+      ابدأ الامتحان
+    </button>
+  </div>
+</div>
+
+<!-- شاشة الامتحان -->
+<div class="exam-stage" id="examStage" hidden>
+
+  <!-- الهيدر -->
+  <header class="exam-header">
+    <div class="exam-header__info">
+      <h2 id="examTitle">—</h2>
+      <span id="examProgress">السؤال 1 من 1</span>
+    </div>
+    <div class="exam-timer" id="examTimer">
+      <i class="fa-solid fa-hourglass-half"></i>
+      <b id="timerText">00:00</b>
+    </div>
+  </header>
+
+  <!-- شريط التقدم -->
+  <div class="exam-progress-bar">
+    <i id="progressFill" style="width:0%"></i>
+  </div>
+
+  <!-- السؤال -->
+  <main class="exam-main" id="questionContainer">
+    <!-- يتولد ديناميكياً -->
+  </main>
+
+  <!-- التحكم -->
+  <footer class="exam-footer">
+    <button class="btn btn--line" id="prevBtn">
+      <i class="fa-solid fa-arrow-right"></i>
+      السابق
+    </button>
+    <div class="exam-footer__nav" id="questionNav">
+      <!-- أرقام الأسئلة -->
+    </div>
+    <button class="btn btn--gold" id="nextBtn">
+      التالي
+      <i class="fa-solid fa-arrow-left"></i>
+    </button>
+  </footer>
+
+</div>
+
+<!-- شاشة النتيجة -->
+<div class="exam-result" id="examResult" hidden>
+  <div class="exam-result__box">
+    <div class="exam-result__icon">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <h1>تم تسليم الامتحان 🎉</h1>
+    <p>هيتم تصحيح الإجابات من قِبل الأستاذ</p>
+    <div class="exam-result__stat">
+      <b id="resultScore">0</b>
+      <span>إجابة صحيحة</span>
+    </div>
+    <a href="index.html" class="btn btn--gold btn--lg">
+      <i class="fa-solid fa-house"></i>
+      العودة للرئيسية
+    </a>
+  </div>
+</div>
+
+<!-- تحذير الغش -->
+<div class="cheat-warning" id="cheatWarning" hidden>
+  <div class="cheat-warning__box">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <h3>تحذير!</h3>
+    <p id="cheatMsg">تم رصد خروجك من شاشة الامتحان</p>
+    <p class="cheat-warning__count">عدد التحذيرات: <b id="cheatCount">0</b> من 3</p>
+    <button class="btn btn--gold" id="resumeExamBtn">متابعة الامتحان</button>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="exam.js"></script>
+</body>
+</html>
