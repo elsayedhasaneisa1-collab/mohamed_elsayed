@@ -1,18 +1,19 @@
-/* ═══════════════════════════════════════════════════════════════
-   admin.js — لوحة التحكم
-   منصة الأستاذ محمد عيسى
-   الأدمن + المدرس: نفس الصلاحيات الكاملة
-   ⚠️ $ و $$ معرّفين في auth.js
-   ⚠️ UI.confirm و UI.alert في ui.js
-   ═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
+/* ─────────────── الحالة ─────────────── */
 let currentUser = null;
 let currentProfile = null;
-let isStaff = false;   // أدمن أو مدرس
-let isAdmin = false;   // أدمن فقط (للتمييز)
+let isAdmin = false;
 let cache = { pending: [], students: [], exams: [], attempts: [], pdf: [] };
+
+// حالة إنشاء الامتحان
+let examModalState = {
+  isOpen: false,
+  editingId: null,      // لو بنعدّل
+  kind: 'exam',         // exam / assignment
+  questions: [],        // الأسئلة الحالية
+  maxQuestions: 15      // 15 للامتحان، 5 للواجب
+};
 
 /* ═══════════════════════════════════════════════════════════════
    الإحصائيات
@@ -134,18 +135,6 @@ async function loadPending() {
 }
 
 function pendingCard(p) {
-  // المدرس والأدمن لهم نفس الصلاحية
-  const actions = `
-    <div class="mcard__acts">
-      <button class="btn btn--gold btn--sm" data-action="approve" data-id="${p.id}">
-        <i class="fa-solid fa-check"></i> موافقة
-      </button>
-      <button class="btn btn--danger btn--sm" data-action="reject" data-id="${p.id}">
-        <i class="fa-solid fa-xmark"></i> رفض
-      </button>
-    </div>
-  `;
-
   return `
     <div class="mcard" data-id="${p.id}">
       <div class="mcard__top">
@@ -160,7 +149,14 @@ function pendingCard(p) {
         <div><b>النوع:</b> ${escapeHtml(p.type)}${p.branch ? ' - ' + escapeHtml(p.branch) : ''}</div>
         <div><b>التسجيل:</b> ${formatDate(p.created_at)}</div>
       </div>
-      ${actions}
+      <div class="mcard__acts">
+        <button class="btn btn--gold btn--sm" data-action="approve" data-id="${p.id}">
+          <i class="fa-solid fa-check"></i> موافقة
+        </button>
+        <button class="btn btn--danger btn--sm" data-action="reject" data-id="${p.id}">
+          <i class="fa-solid fa-xmark"></i> رفض
+        </button>
+      </div>
     </div>
   `;
 }
@@ -281,17 +277,6 @@ function renderStudents() {
 }
 
 function studentCard(s) {
-  const actions = `
-    <div class="mcard__acts">
-      <button class="btn btn--line btn--sm" data-action="toggle" data-id="${s.id}">
-        <i class="fa-solid fa-ban"></i> إيقاف
-      </button>
-      <button class="btn btn--danger btn--sm" data-action="delete" data-id="${s.id}">
-        <i class="fa-solid fa-trash"></i> حذف
-      </button>
-    </div>
-  `;
-
   return `
     <div class="mcard" data-id="${s.id}">
       <div class="mcard__top">
@@ -305,7 +290,14 @@ function studentCard(s) {
         <div><b>الصف:</b> ${escapeHtml(s.grade)}</div>
         <div><b>النوع:</b> ${escapeHtml(s.type)}${s.branch ? ' - ' + escapeHtml(s.branch) : ''}</div>
       </div>
-      ${actions}
+      <div class="mcard__acts">
+        <button class="btn btn--line btn--sm" data-action="toggle" data-id="${s.id}">
+          <i class="fa-solid fa-ban"></i> إيقاف
+        </button>
+        <button class="btn btn--danger btn--sm" data-action="delete" data-id="${s.id}">
+          <i class="fa-solid fa-trash"></i> حذف
+        </button>
+      </div>
     </div>
   `;
 }
@@ -322,7 +314,7 @@ function bindStudentActions() {
         const ok = await UI.confirm({
           type: 'warn',
           title: 'إيقاف الحساب؟',
-          message: `سيتوقف "${name}" عن الدخول للمنصة. تقدر ترجعه بعدين.`,
+          message: `سيتوقف "${name}" عن الدخول للمنصة.`,
           confirmText: 'إيقاف',
           cancelText: 'إلغاء'
         });
@@ -338,7 +330,7 @@ function bindStudentActions() {
         const ok = await UI.confirm({
           type: 'danger',
           title: 'حذف نهائي؟',
-          message: `سيتم حذف "${name}" وكل بياناته نهائياً. لا يمكن التراجع.`,
+          message: `سيتم حذف "${name}" وكل بياناته.`,
           confirmText: 'حذف',
           cancelText: 'إلغاء'
         });
@@ -355,7 +347,7 @@ function bindStudentActions() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   3. الامتحانات
+   3. الامتحانات والواجبات
    ═══════════════════════════════════════════════════════════════ */
 async function loadExams() {
   const c = document.getElementById('examsContainer');
@@ -364,7 +356,7 @@ async function loadExams() {
   try {
     const { data, error } = await supabaseClient
       .from('exams')
-      .select('id, title, grade, type, branch, duration_minutes, opens_at, closes_at, total_marks, status, created_at')
+      .select('id, title, grade, type, branch, duration_minutes, opens_at, closes_at, total_marks, status, kind, created_at')
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -376,7 +368,7 @@ async function loadExams() {
     cache.exams = data || [];
 
     if (!data?.length) {
-      c.innerHTML = emptyState('fa-file-pen', 'مفيش امتحانات', 'ابدأ بإنشاء امتحان جديد');
+      c.innerHTML = emptyState('fa-file-pen', 'مفيش امتحانات', 'ابدأ بإنشاء امتحان أو واجب جديد');
       return;
     }
 
@@ -393,6 +385,7 @@ function examCard(e) {
   const now = new Date();
   const opens = new Date(e.opens_at);
   const closes = new Date(e.closes_at);
+  const isAssignment = e.kind === 'assignment';
 
   let statusBadge = '';
   if (e.status === 'draft') statusBadge = '<span class="badge badge--mut"><i class="fa-solid fa-pen"></i> مسودة</span>';
@@ -400,24 +393,15 @@ function examCard(e) {
   else if (now > closes) statusBadge = '<span class="badge badge--err"><i class="fa-solid fa-lock"></i> مقفول</span>';
   else statusBadge = '<span class="badge badge--ok"><i class="fa-solid fa-play"></i> مفتوح</span>';
 
-  const actions = `
-    <div class="mcard__acts">
-      <button class="btn btn--line btn--sm" data-action="publish" data-id="${e.id}" ${e.status === 'published' ? 'disabled' : ''}>
-        <i class="fa-solid fa-upload"></i> نشر
-      </button>
-      <button class="btn btn--line btn--sm" data-action="close" data-id="${e.id}" ${e.status === 'closed' ? 'disabled' : ''}>
-        <i class="fa-solid fa-lock"></i> إغلاق
-      </button>
-      <button class="btn btn--danger btn--sm" data-action="delete" data-id="${e.id}">
-        <i class="fa-solid fa-trash"></i> حذف
-      </button>
-    </div>
-  `;
+  const kindBadge = isAssignment
+    ? '<span class="badge badge--info"><i class="fa-solid fa-clipboard-check"></i> واجب</span>'
+    : '<span class="badge badge--gold"><i class="fa-solid fa-file-pen"></i> امتحان</span>';
 
   return `
     <div class="mcard" data-id="${e.id}">
       <div class="mcard__top">
         <h4>${escapeHtml(e.title)}</h4>
+        ${kindBadge}
         ${statusBadge}
       </div>
       <div class="mcard__rows">
@@ -427,7 +411,20 @@ function examCard(e) {
         <div><b>يفتح:</b> ${formatDate(e.opens_at)}</div>
         <div><b>يقفل:</b> ${formatDate(e.closes_at)}</div>
       </div>
-      ${actions}
+      <div class="mcard__acts">
+        <button class="btn btn--line btn--sm" data-action="edit" data-id="${e.id}">
+          <i class="fa-solid fa-pen"></i> تعديل
+        </button>
+        <button class="btn btn--line btn--sm" data-action="publish" data-id="${e.id}" ${e.status === 'published' ? 'disabled' : ''}>
+          <i class="fa-solid fa-upload"></i> نشر
+        </button>
+        <button class="btn btn--line btn--sm" data-action="close" data-id="${e.id}" ${e.status === 'closed' ? 'disabled' : ''}>
+          <i class="fa-solid fa-lock"></i> إغلاق
+        </button>
+        <button class="btn btn--danger btn--sm" data-action="delete" data-id="${e.id}">
+          <i class="fa-solid fa-trash"></i> حذف
+        </button>
+      </div>
     </div>
   `;
 }
@@ -441,10 +438,14 @@ function bindExamActions() {
       const title = card.querySelector('h4').textContent;
 
       try {
-        if (action === 'publish') {
+        if (action === 'edit') {
+          await openExamModal(id);
+          return;
+
+        } else if (action === 'publish') {
           const ok = await UI.confirm({
             type: 'success',
-            title: 'نشر الامتحان؟',
+            title: 'نشر؟',
             message: `سيظهر "${title}" للطلاب في صفهم.`,
             confirmText: 'نشر',
             cancelText: 'إلغاء'
@@ -458,7 +459,7 @@ function bindExamActions() {
         } else if (action === 'close') {
           const ok = await UI.confirm({
             type: 'warn',
-            title: 'إغلاق الامتحان؟',
+            title: 'إغلاق؟',
             message: `سيتم إغلاق "${title}" ولن يقدر الطلاب يدخلوه.`,
             confirmText: 'إغلاق',
             cancelText: 'إلغاء'
@@ -472,8 +473,8 @@ function bindExamActions() {
         } else if (action === 'delete') {
           const ok = await UI.confirm({
             type: 'danger',
-            title: 'حذف الامتحان؟',
-            message: `سيتم حذف "${title}" وكل أسئلته ومحاولات الطلاب. لا يمكن التراجع.`,
+            title: 'حذف؟',
+            message: `سيتم حذف "${title}" وكل أسئلته.`,
             confirmText: 'حذف',
             cancelText: 'إلغاء'
           });
@@ -492,6 +493,592 @@ function bindExamActions() {
       }
     });
   });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Modal إنشاء / تعديل امتحان
+   ═══════════════════════════════════════════════════════════════ */
+function openExamModal(editId = null) {
+  const modal = document.getElementById('examModal');
+  if (!modal) return;
+
+  examModalState.isOpen = true;
+  examModalState.editingId = editId;
+  examModalState.kind = 'exam';
+  examModalState.maxQuestions = 15;
+  examModalState.questions = [];
+
+  // reset
+  document.getElementById('examModalTitle').textContent = editId ? 'تعديل' : 'إنشاء امتحان';
+
+  // لو بنعدّل → نجيب البيانات
+  if (editId) {
+    loadExamForEdit(editId);
+  } else {
+    resetExamForm();
+  }
+
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeExamModal() {
+  const modal = document.getElementById('examModal');
+  if (!modal) return;
+
+  modal.hidden = true;
+  document.body.style.overflow = '';
+  examModalState.isOpen = false;
+  examModalState.editingId = null;
+  examModalState.questions = [];
+}
+
+function resetExamForm() {
+  document.getElementById('examTitle').value = '';
+  document.getElementById('examDesc').value = '';
+  document.getElementById('examDuration').value = '60';
+  document.getElementById('examPassMarks').value = '50';
+
+  // وقت الفتح = الآن
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('examOpensAt').value = now.toISOString().slice(0, 16);
+
+  // وقت الإغلاق = بعد أسبوع
+  const week = new Date();
+  week.setDate(week.getDate() + 7);
+  week.setMinutes(week.getMinutes() - week.getTimezoneOffset());
+  document.getElementById('examClosesAt').value = week.toISOString().slice(0, 16);
+
+  // مسح الاختيارات
+  $$('input[name="grade"]').forEach(i => i.checked = false);
+  $$('input[name="type"]').forEach(i => i.checked = false);
+  $$('input[name="branch"]').forEach(i => i.checked = false);
+
+  // tabs
+  document.querySelector('input[name="examKind"][value="exam"]').checked = true;
+  updateKindTabs();
+  updateBranchesVisibility();
+
+  // مسح الأسئلة
+  examModalState.questions = [];
+  examModalState.maxQuestions = 15;
+  document.getElementById('questionsMax').textContent = '15';
+  renderQuestions();
+}
+
+function updateKindTabs() {
+  const kind = document.querySelector('input[name="examKind"]:checked')?.value || 'exam';
+  examModalState.kind = kind;
+  examModalState.maxQuestions = kind === 'exam' ? 15 : 5;
+
+  $$('.exam-kind-tab').forEach(tab => {
+    tab.classList.toggle('is-active', tab.dataset.kind === kind);
+  });
+
+  document.getElementById('questionsMax').textContent = examModalState.maxQuestions;
+  document.getElementById('examModalTitle').textContent =
+    (examModalState.editingId ? 'تعديل ' : 'إنشاء ') + (kind === 'exam' ? 'امتحان' : 'واجب');
+
+  // لو عدد الأسئلة أكبر من الحد الجديد، نقص
+  if (examModalState.questions.length > examModalState.maxQuestions) {
+    examModalState.questions = examModalState.questions.slice(0, examModalState.maxQuestions);
+  }
+
+  renderQuestions();
+}
+
+function updateBranchesVisibility() {
+  const types = $$('input[name="type"]:checked').map(i => i.value);
+  const grades = $$('input[name="grade"]:checked').map(i => i.value);
+
+  const hasAzhar = types.includes('أزهر');
+  const hasThanwy = grades.some(g => g.includes('ثانوي'));
+
+  const section = document.getElementById('branchesSection');
+  if (hasAzhar && hasThanwy) {
+    section.hidden = false;
+  } else {
+    section.hidden = true;
+    $$('input[name="branch"]').forEach(i => i.checked = false);
+  }
+}
+
+/* ─────────────── الأسئلة ─────────────── */
+function renderQuestions() {
+  const list = document.getElementById('questionsList');
+  if (!list) return;
+
+  const count = examModalState.questions.length;
+  document.getElementById('questionsCount').textContent = count;
+
+  if (!count) {
+    list.innerHTML = `
+      <div class="empty-state" style="padding:30px 20px">
+        <i class="fa-solid fa-list-check"></i>
+        <h4>لسه مفيش أسئلة</h4>
+        <p>اضغط "إضافة سؤال" لتبدأ</p>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = examModalState.questions.map((q, i) => questionItem(q, i)).join('');
+
+  // ربط الأحداث
+  bindQuestionEvents();
+
+  // تحديث حالة زرار الإضافة
+  const addBtn = document.getElementById('addQuestionBtn');
+  if (addBtn) {
+    addBtn.disabled = count >= examModalState.maxQuestions;
+    if (count >= examModalState.maxQuestions) {
+      addBtn.innerHTML = `<i class="fa-solid fa-circle-info"></i> وصلت للحد الأقصى (${examModalState.maxQuestions})`;
+    } else {
+      addBtn.innerHTML = `<i class="fa-solid fa-plus"></i> إضافة سؤال`;
+    }
+  }
+}
+
+function questionItem(q, index) {
+  const letters = ['أ', 'ب', 'ج', 'د'];
+  const isMcq = q.question_type === 'mcq';
+
+  return `
+    <div class="q-item" data-qindex="${index}">
+      <div class="q-item__head">
+        <div class="q-item__num">${index + 1}</div>
+        <div class="q-type-tabs">
+          <label class="q-type-tab ${isMcq ? '' : ''}">
+            <input type="radio" name="qtype_${index}" value="mcq" ${isMcq ? 'checked' : ''} data-qidx="${index}" data-qtype="mcq">
+            <i class="fa-solid fa-list-ul"></i>
+            MCQ
+          </label>
+          <label class="q-type-tab">
+            <input type="radio" name="qtype_${index}" value="essay" ${!isMcq ? 'checked' : ''} data-qidx="${index}" data-qtype="essay">
+            <i class="fa-solid fa-pen-fancy"></i>
+            مقالي
+          </label>
+        </div>
+        <button type="button" class="q-item__del" data-del="${index}" title="حذف السؤال">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+
+      <div class="q-field">
+        <label><i class="fa-solid fa-question"></i> نص السؤال <span class="req">*</span></label>
+        <textarea class="q-textarea" data-field="text" data-qidx="${index}" placeholder="اكتب السؤال هنا...">${escapeHtml(q.question_text || '')}</textarea>
+      </div>
+
+      <div class="q-row">
+        <div class="q-field">
+          <label><i class="fa-solid fa-star"></i> الدرجة</label>
+          <input type="number" class="q-input" data-field="marks" data-qidx="${index}" value="${q.marks || 1}" min="1" max="100">
+        </div>
+      </div>
+
+      ${isMcq ? renderMcqChoices(q, index, letters) : ''}
+    </div>
+  `;
+}
+
+function renderMcqChoices(q, index, letters) {
+  const choices = q.choices && q.choices.length === 4
+    ? q.choices
+    : [
+        { choice_text: '', is_correct: false },
+        { choice_text: '', is_correct: false },
+        { choice_text: '', is_correct: false },
+        { choice_text: '', is_correct: false }
+      ];
+
+  return `
+    <div class="q-field">
+      <label><i class="fa-solid fa-list"></i> الاختيارات <span class="req">*</span>
+        <span style="color:var(--muted);font-weight:400;font-size:.75rem">— اختر الإجابة الصحيحة</span>
+      </label>
+      <div class="q-choices">
+        ${choices.map((c, ci) => `
+          <div class="q-choice ${c.is_correct ? 'is-correct' : ''}">
+            <label class="q-choice__radio">
+              <input type="radio" name="correct_${index}" value="${ci}" ${c.is_correct ? 'checked' : ''} data-correct="${index}" data-ci="${ci}">
+              <span></span>
+            </label>
+            <div class="q-choice__letter">${letters[ci]}</div>
+            <input type="text" data-choice="${index}" data-ci="${ci}" value="${escapeHtml(c.choice_text || '')}" placeholder="الاختيار ${letters[ci]}">
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function bindQuestionEvents() {
+  const list = document.getElementById('questionsList');
+
+  // حذف سؤال
+  $$('[data-del]', list).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = parseInt(btn.dataset.del, 10);
+      const ok = await UI.confirm({
+        type: 'danger',
+        title: 'حذف السؤال؟',
+        message: `سيتم حذف السؤال رقم ${idx + 1}.`,
+        confirmText: 'حذف',
+        cancelText: 'إلغاء'
+      });
+      if (!ok) return;
+      examModalState.questions.splice(idx, 1);
+      renderQuestions();
+    });
+  });
+
+  // تغيير نوع السؤال
+  $$('[data-qtype]', list).forEach(input => {
+    input.addEventListener('change', () => {
+      const idx = parseInt(input.dataset.qidx, 10);
+      const type = input.dataset.qtype;
+      const q = examModalState.questions[idx];
+      if (!q) return;
+      q.question_type = type;
+
+      // لو MCQ ولسه مش عنده choices → نضيف 4
+      if (type === 'mcq' && (!q.choices || q.choices.length !== 4)) {
+        q.choices = [
+          { choice_text: '', is_correct: false },
+          { choice_text: '', is_correct: false },
+          { choice_text: '', is_correct: false },
+          { choice_text: '', is_correct: false }
+        ];
+      }
+      renderQuestions();
+    });
+  });
+
+  // نص السؤال
+  $$('[data-field="text"]', list).forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = parseInt(el.dataset.qidx, 10);
+      if (examModalState.questions[idx]) {
+        examModalState.questions[idx].question_text = el.value;
+      }
+    });
+  });
+
+  // الدرجة
+  $$('[data-field="marks"]', list).forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = parseInt(el.dataset.qidx, 10);
+      if (examModalState.questions[idx]) {
+        examModalState.questions[idx].marks = parseInt(el.value, 10) || 1;
+      }
+    });
+  });
+
+  // نص الاختيار
+  $$('[data-choice]', list).forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = parseInt(el.dataset.choice, 10);
+      const ci = parseInt(el.dataset.ci, 10);
+      const q = examModalState.questions[idx];
+      if (q && q.choices && q.choices[ci]) {
+        q.choices[ci].choice_text = el.value;
+      }
+    });
+  });
+
+  // الإجابة الصحيحة
+  $$('[data-correct]', list).forEach(input => {
+    input.addEventListener('change', () => {
+      const idx = parseInt(input.dataset.correct, 10);
+      const ci = parseInt(input.dataset.ci, 10);
+      const q = examModalState.questions[idx];
+      if (q && q.choices) {
+        q.choices.forEach((c, i) => c.is_correct = (i === ci));
+      }
+      // تحديث الـ UI
+      const item = input.closest('.q-item');
+      $$('.q-choice', item).forEach((ch, i) => {
+        ch.classList.toggle('is-correct', i === ci);
+      });
+    });
+  });
+}
+
+function addQuestion() {
+  if (examModalState.questions.length >= examModalState.maxQuestions) {
+    Toast.warn('وصلت للحد الأقصى', `الحد الأقصى ${examModalState.maxQuestions} أسئلة`);
+    return;
+  }
+
+  examModalState.questions.push({
+    question_text: '',
+    question_type: 'mcq',
+    marks: 1,
+    choices: [
+      { choice_text: '', is_correct: false },
+      { choice_text: '', is_correct: false },
+      { choice_text: '', is_correct: false },
+      { choice_text: '', is_correct: false }
+    ]
+  });
+
+  renderQuestions();
+
+  // scroll للأسفل
+  const list = document.getElementById('questionsList');
+  list?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+/* ─────────────── حفظ ─────────────── */
+async function saveExam(status = 'draft') {
+  try {
+    // 1) جمع البيانات
+    const title = document.getElementById('examTitle').value.trim();
+    const description = document.getElementById('examDesc').value.trim();
+    const duration = parseInt(document.getElementById('examDuration').value, 10);
+    const passMarks = parseInt(document.getElementById('examPassMarks').value, 10) || 0;
+    const opensAt = document.getElementById('examOpensAt').value;
+    const closesAt = document.getElementById('examClosesAt').value;
+    const kind = examModalState.kind;
+
+    const grades = $$('input[name="grade"]:checked').map(i => i.value);
+    const types = $$('input[name="type"]:checked').map(i => i.value);
+    const branches = $$('input[name="branch"]:checked').map(i => i.value);
+
+    // 2) تحقق
+    const errs = [];
+    if (!title) errs.push('العنوان مطلوب');
+    if (!grades.length) errs.push('اختر صف واحد على الأقل');
+    if (!types.length) errs.push('اختر نوع واحد على الأقل');
+    if (!duration || duration < 1) errs.push('المدة غير صحيحة');
+    if (!closesAt) errs.push('وقت الإغلاق مطلوب');
+
+    // لو أزهر + ثانوي → لازم فرع
+    const hasAzhar = types.includes('أزهر');
+    const hasThanwy = grades.some(g => g.includes('ثانوي'));
+    if (hasAzhar && hasThanwy && !branches.length) {
+      errs.push('اختر فرع واحد على الأقل (علمي / أدبي)');
+    }
+
+    if (!examModalState.questions.length) {
+      errs.push('لازم تضيف سؤال واحد على الأقل');
+    }
+
+    // تحقق من كل سؤال
+    for (let i = 0; i < examModalState.questions.length; i++) {
+      const q = examModalState.questions[i];
+      if (!q.question_text.trim()) {
+        errs.push(`السؤال ${i + 1}: النص مطلوب`);
+        break;
+      }
+      if (q.question_type === 'mcq') {
+        const emptyChoice = q.choices.findIndex(c => !c.choice_text.trim());
+        if (emptyChoice !== -1) {
+          errs.push(`السؤال ${i + 1}: الاختيار ${emptyChoice + 1} فاضي`);
+          break;
+        }
+        if (!q.choices.some(c => c.is_correct)) {
+          errs.push(`السؤال ${i + 1}: اختر الإجابة الصحيحة`);
+          break;
+        }
+      }
+    }
+
+    if (errs.length) {
+      Toast.warn('تحقق من البيانات', errs[0]);
+      return;
+    }
+
+    // 3) حساب total_marks
+    const totalMarks = examModalState.questions.reduce((s, q) => s + (q.marks || 0), 0);
+
+    // 4) تحويل التواريخ لـ ISO
+    const opensISO = opensAt ? new Date(opensAt).toISOString() : new Date().toISOString();
+    const closesISO = new Date(closesAt).toISOString();
+
+    // 5) بناء الـ payload (نحفظ الصف الأول + النوع الأول + الفرع الأول)
+    // (لأن الجداول مش بتدعم arrays في النسخة الحالية)
+    const payload = {
+      title,
+      description,
+      grade: grades[0],
+      type: types[0],
+      branch: branches[0] || null,
+      duration_minutes: duration,
+      opens_at: opensISO,
+      closes_at: closesISO,
+      total_marks: totalMarks,
+      pass_marks: passMarks,
+      status,
+      kind,
+      created_by: currentUser.id
+    };
+
+    // 6) حفظ أو تحديث
+    let examId = examModalState.editingId;
+
+    if (examId) {
+      // تحديث
+      const { error } = await supabaseClient
+        .from('exams')
+        .update(payload)
+        .eq('id', examId);
+      if (error) throw error;
+
+      // مسح الأسئلة القديمة + إضافة الجديدة
+      await supabaseClient.from('questions').delete().eq('exam_id', examId);
+    } else {
+      // إنشاء
+      const { data, error } = await supabaseClient
+        .from('exams')
+        .insert(payload)
+        .select('id')
+        .single();
+      if (error) throw error;
+      examId = data.id;
+    }
+
+    // 7) حفظ الأسئلة + الاختيارات
+    for (let i = 0; i < examModalState.questions.length; i++) {
+      const q = examModalState.questions[i];
+
+      const { data: qData, error: qErr } = await supabaseClient
+        .from('questions')
+        .insert({
+          exam_id: examId,
+          question_text: q.question_text.trim(),
+          question_type: q.question_type,
+          marks: q.marks || 1,
+          order_index: i
+        })
+        .select('id')
+        .single();
+
+      if (qErr) throw qErr;
+
+      // لو MCQ → احفظ الاختيارات
+      if (q.question_type === 'mcq' && q.choices) {
+        const choicesPayload = q.choices.map((c, ci) => ({
+          question_id: qData.id,
+          choice_text: c.choice_text.trim(),
+          is_correct: c.is_correct,
+          order_index: ci
+        }));
+
+        const { error: cErr } = await supabaseClient.from('choices').insert(choicesPayload);
+        if (cErr) throw cErr;
+      }
+    }
+
+    // 8) نجاح
+    Toast.success(
+      status === 'published' ? 'تم النشر ✅' : 'تم الحفظ ✅',
+      `تم ${status === 'published' ? 'نشر' : 'حفظ'} "${title}"`
+    );
+
+    closeExamModal();
+    loadExams();
+    loadStats();
+
+  } catch (err) {
+    console.error(err);
+    Toast.error('خطأ', err.message || 'حاول تاني');
+  }
+}
+
+/* ─────────────── تحميل امتحان للتعديل ─────────────── */
+async function loadExamForEdit(examId) {
+  try {
+    const { data: exam, error } = await supabaseClient
+      .from('exams')
+      .select('*')
+      .eq('id', examId)
+      .single();
+
+    if (error || !exam) {
+      Toast.error('خطأ', 'مش قادر أجيب الامتحان');
+      closeExamModal();
+      return;
+    }
+
+    // 1) الأساسيات
+    document.getElementById('examTitle').value = exam.title || '';
+    document.getElementById('examDesc').value = exam.description || '';
+    document.getElementById('examDuration').value = exam.duration_minutes || 60;
+    document.getElementById('examPassMarks').value = exam.pass_marks || 50;
+
+    // التواريخ
+    if (exam.opens_at) {
+      const d = new Date(exam.opens_at);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      document.getElementById('examOpensAt').value = d.toISOString().slice(0, 16);
+    }
+    if (exam.closes_at) {
+      const d = new Date(exam.closes_at);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      document.getElementById('examClosesAt').value = d.toISOString().slice(0, 16);
+    }
+
+    // 2) الصف / النوع / الفرع (checkbox)
+    $$('input[name="grade"]').forEach(i => i.checked = (i.value === exam.grade));
+    $$('input[name="type"]').forEach(i => i.checked = (i.value === exam.type));
+    $$('input[name="branch"]').forEach(i => i.checked = (i.value === exam.branch));
+
+    // 3) النوع (امتحان / واجب)
+    const kind = exam.kind || 'exam';
+    document.querySelector(`input[name="examKind"][value="${kind}"]`).checked = true;
+    examModalState.kind = kind;
+    examModalState.maxQuestions = kind === 'exam' ? 15 : 5;
+    document.getElementById('questionsMax').textContent = examModalState.maxQuestions;
+
+    $$('.exam-kind-tab').forEach(tab => {
+      tab.classList.toggle('is-active', tab.dataset.kind === kind);
+    });
+
+    updateBranchesVisibility();
+
+    // 4) الأسئلة
+    const { data: questions } = await supabaseClient
+      .from('questions')
+      .select('*')
+      .eq('exam_id', examId)
+      .order('order_index', { ascending: true });
+
+    const qIds = (questions || []).map(q => q.id);
+    let allChoices = [];
+    if (qIds.length) {
+      const { data: choices } = await supabaseClient
+        .from('choices')
+        .select('*')
+        .in('question_id', qIds)
+        .order('order_index', { ascending: true });
+      allChoices = choices || [];
+    }
+
+    examModalState.questions = (questions || []).map(q => ({
+      question_text: q.question_text,
+      question_type: q.question_type,
+      marks: q.marks,
+      choices: q.question_type === 'mcq'
+        ? allChoices.filter(c => c.question_id === q.id).map(c => ({
+            choice_text: c.choice_text,
+            is_correct: c.is_correct
+          }))
+        : []
+    }));
+
+    renderQuestions();
+
+    // 5) تغيير العنوان
+    document.getElementById('examModalTitle').textContent =
+      'تعديل ' + (kind === 'exam' ? 'امتحان' : 'واجب');
+
+  } catch (err) {
+    console.error(err);
+    Toast.error('خطأ', 'حاول تاني');
+    closeExamModal();
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -879,7 +1466,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const guard = await guardPage();
   if (!guard) return;
 
-  // المدرس أو الأدمن بس
   if (guard.profile.role !== 'admin' && guard.profile.role !== 'teacher') {
     window.location.href = 'index.html';
     return;
@@ -887,12 +1473,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   currentUser = guard.session.user;
   currentProfile = guard.profile;
-
-  // ⭐ المدرس له نفس صلاحيات الأدمن
-  isStaff = (currentProfile.role === 'admin' || currentProfile.role === 'teacher');
   isAdmin = (currentProfile.role === 'admin');
 
-  // لو مدرس، غيّر العنوان
   if (currentProfile.role === 'teacher') {
     const titleEl = document.querySelector('.admin-top__title h1');
     if (titleEl) titleEl.textContent = 'لوحة المدرس';
@@ -902,6 +1484,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initTabs();
 
+  /* ─── أزرار الهيدر ─── */
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     const ok = await UI.confirm({
       type: 'warn',
@@ -926,6 +1509,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     Toast.info('تم التحديث', '');
   });
 
+  /* ─── بحث ─── */
   document.getElementById('searchPending')?.addEventListener('input', () => {
     const q = document.getElementById('searchPending').value.toLowerCase();
     $$('#pendingContainer .mcard').forEach(card => {
@@ -937,14 +1521,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('filterGrade')?.addEventListener('change', renderStudents);
   document.getElementById('filterAttempts')?.addEventListener('change', renderAttempts);
 
+  /* ─── PDF ─── */
   document.getElementById('downloadAllPdfBtn')?.addEventListener('click', downloadAllPdf);
   document.getElementById('deleteExportedBtn')?.addEventListener('click', deleteExported);
 
+  /* ─── إنشاء امتحان ─── */
   document.getElementById('newExamBtn')?.addEventListener('click', () => {
-    // المدرس والأدمن لهم نفس الصلاحية
-    Toast.info('قريباً', 'إنشاء الامتحانات هيتضاف في التحديث القادم');
+    openExamModal();
   });
 
+  /* ─── Modal أحداث ─── */
+  document.getElementById('closeExamModal')?.addEventListener('click', closeExamModal);
+  document.getElementById('cancelExamBtn')?.addEventListener('click', closeExamModal);
+
+  // الإغلاق بـ ESC أو backdrop
+  document.getElementById('examModal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal__backdrop')) closeExamModal();
+  });
+
+  // tabs الامتحان/الواجب
+  $$('.exam-kind-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const kind = tab.dataset.kind;
+      document.querySelector(`input[name="examKind"][value="${kind}"]`).checked = true;
+      updateKindTabs();
+    });
+  });
+
+  // الصف / النوع (لتحديث الفرع)
+  $$('input[name="grade"]').forEach(i => {
+    i.addEventListener('change', updateBranchesVisibility);
+  });
+  $$('input[name="type"]').forEach(i => {
+    i.addEventListener('change', updateBranchesVisibility);
+  });
+
+  // إضافة سؤال
+  document.getElementById('addQuestionBtn')?.addEventListener('click', addQuestion);
+
+  // حفظ
+  document.getElementById('saveDraftBtn')?.addEventListener('click', () => saveExam('draft'));
+  document.getElementById('publishExamBtn')?.addEventListener('click', () => saveExam('published'));
+
+  /* ─── تحميل أولي ─── */
   loadStats();
   loadPending();
 });

@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
-   الصفحة الرئيسية للطالب — منصة الأستاذ محمد عيسى
+   student.css — الصفحة الرئيسية للطالب
+   منصة الأستاذ محمد عيسى
    ═══════════════════════════════════════════════════════════════ */
 
 body.page-student{
@@ -60,9 +61,12 @@ body.page-student{
 
 /* ─────────────── إحصائيات الطالب ─────────────── */
 .student-stats{
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;grid-template-columns:repeat(2,1fr);
   gap:10px;margin-bottom:26px;
   animation:fadeUp .5s .1s var(--ease) both;
+}
+@media(min-width:640px){
+  .student-stats{grid-template-columns:repeat(4,1fr)}
 }
 .sstat{
   padding:14px 12px;
@@ -93,7 +97,10 @@ body.page-student{
 .sstat span{font-size:.72rem;color:var(--muted)}
 
 /* ─────────────── الأقسام ─────────────── */
-.student-section{margin-bottom:32px}
+.student-section{
+  margin-bottom:32px;
+  scroll-margin-top:calc(66px + 20px);
+}
 .student-section h2{
   font-size:1.1rem;
   margin-bottom:14px;
@@ -105,7 +112,7 @@ body.page-student{
   color:var(--gold);
 }
 
-/* ─────────────── كارت الامتحان ─────────────── */
+/* ─────────────── كارت الامتحان/الواجب ─────────────── */
 .exam-card{
   padding:16px;
   border-radius:var(--r-md);
@@ -136,16 +143,45 @@ body.page-student{
   background:linear-gradient(180deg, var(--ok), transparent);
 }
 
+/* كارت الواجب بلون مختلف شوية */
+.exam-card--assignment::before{
+  background:linear-gradient(180deg, var(--info), transparent);
+}
+.exam-card--assignment:hover{
+  background:linear-gradient(160deg, rgba(90,200,250,.07), rgba(255,255,255,.02));
+  box-shadow:0 20px 40px -28px rgba(90,200,250,.5);
+}
+
 .exam-card__head{
   display:flex;gap:11px;align-items:flex-start;
   margin-bottom:12px;
+  flex-wrap:wrap;
 }
 .exam-card__head h3{
   font-size:1.02rem;flex:1;line-height:1.4;
   font-weight:800;
   transition:color .3s;
+  min-width:150px;
 }
 .exam-card:hover .exam-card__head h3{color:var(--gold-2)}
+
+.exam-card__kind{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:999px;
+  font-size:.7rem;font-weight:700;
+  border:1px solid;
+  white-space:nowrap;
+}
+.exam-card__kind--exam{
+  color:var(--gold-2);
+  border-color:var(--line);
+  background:var(--gold-soft);
+}
+.exam-card__kind--assignment{
+  color:var(--info);
+  border-color:rgba(90,200,250,.35);
+  background:rgba(90,200,250,.1);
+}
 
 .exam-card__meta{
   display:flex;flex-wrap:wrap;gap:9px;
@@ -248,7 +284,7 @@ body.page-student{
 /* ─────────────── Bottom Bar ─────────────── */
 .bottom-bar{
   position:fixed;bottom:0;inset-inline:0;z-index:70;
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;grid-template-columns:repeat(4,1fr);
   align-items:stretch;
   background:rgba(10,10,10,.94);
   backdrop-filter:blur(22px) saturate(160%);
@@ -261,11 +297,12 @@ body.page-student{
   position:relative;
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:5px;
-  padding:11px 4px;font-size:.7rem;font-weight:600;
+  padding:11px 4px;font-size:.68rem;font-weight:600;
   color:var(--muted);
   transition:color .28s,background .28s;
   font-family:'Cairo',sans-serif;
   -webkit-tap-highlight-color:transparent;
+  text-decoration:none;
 }
 .bottom-bar__btn i{
   font-size:1.15rem;
@@ -288,7 +325,7 @@ body.page-student{
     inset-inline-start:50%;
     transform:translateX(50%);
     bottom:18px;
-    width:min(480px,92vw);
+    width:min(600px,92vw);
     border-radius:999px;
     border:1px solid var(--line);
     box-shadow:0 22px 50px -20px rgba(0,0,0,.95), var(--shadow-gold);
@@ -311,7 +348,7 @@ body.page-student{
   .exam-card__acts .btn{flex:1 1 100%}
 }
 
-/* ─────────────── الأنيميشن ─────────────── */
+/* ─────────────── Animations ─────────────── */
 @keyframes fadeUp{
   from{opacity:0;transform:translateY(14px)}
   to{opacity:1;transform:none}

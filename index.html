@@ -15,20 +15,6 @@
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="student.css">
 </head>
-<script>
-// امسح أي Service Worker قديم
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(r => {
-      r.unregister();
-      console.log('SW removed:', r.scope);
-    });
-  });
-  caches.keys().then(keys => {
-    keys.forEach(k => caches.delete(k));
-  });
-}
-</script>
 <body class="page-student">
 
 <div class="bg-stage">
@@ -67,7 +53,12 @@ if ('serviceWorker' in navigator) {
       <span>امتحانات متاحة</span>
     </div>
     <div class="sstat">
-      <div class="sstat__ic"><i class="fa-solid fa-circle-check"></i></div>
+      <div class="sstat__ic"><i class="fa-solid fa-clipboard-check"></i></div>
+      <b id="statAssignments">—</b>
+      <span>واجبات متاحة</span>
+    </div>
+    <div class="sstat">
+      <div class="sstat__ic"><i class="fa-solid fa-check-double"></i></div>
       <b id="statDone">—</b>
       <span>خلصتها</span>
     </div>
@@ -78,15 +69,22 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
 
-  <section class="student-section">
+  <section class="student-section" id="exams-section">
     <h2><i class="fa-solid fa-fire"></i> امتحانات متاحة</h2>
     <div id="availableContainer">
       <div class="loader"><span></span><span></span><span></span></div>
     </div>
   </section>
 
-  <section class="student-section">
-    <h2><i class="fa-solid fa-check-double"></i> امتحانات خلصتها</h2>
+  <section class="student-section" id="assignments-section">
+    <h2><i class="fa-solid fa-clipboard-check"></i> واجبات متاحة</h2>
+    <div id="assignmentsContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <section class="student-section" id="done-section">
+    <h2><i class="fa-solid fa-check-double"></i> امتحانات وواجبات خلصتها</h2>
     <div id="doneContainer">
       <div class="loader"><span></span><span></span><span></span></div>
     </div>
@@ -99,11 +97,15 @@ if ('serviceWorker' in navigator) {
     <i class="fa-solid fa-house"></i>
     <span>الرئيسية</span>
   </a>
-  <a href="#available" class="bottom-bar__btn">
+  <a href="#exams-section" class="bottom-bar__btn" data-scroll="exams-section">
     <i class="fa-solid fa-file-pen"></i>
     <span>الامتحانات</span>
   </a>
-  <a href="#done" class="bottom-bar__btn">
+  <a href="#assignments-section" class="bottom-bar__btn" data-scroll="assignments-section">
+    <i class="fa-solid fa-clipboard-check"></i>
+    <span>الواجبات</span>
+  </a>
+  <a href="#done-section" class="bottom-bar__btn" data-scroll="done-section">
     <i class="fa-solid fa-chart-line"></i>
     <span>درجاتي</span>
   </a>

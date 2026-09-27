@@ -157,13 +157,13 @@
   <section class="admin-panel" data-panel="exams">
     <div class="panel-head">
       <div>
-        <h2>الامتحانات</h2>
-        <p>إنشاء وإدارة الامتحانات</p>
+        <h2>الامتحانات والواجبات</h2>
+        <p>إنشاء وإدارة الامتحانات والواجبات</p>
       </div>
       <div class="panel-tools">
         <button class="btn btn--gold btn--sm" id="newExamBtn">
           <i class="fa-solid fa-plus"></i>
-          امتحان جديد
+          إنشاء امتحان / واجب
         </button>
       </div>
     </div>
@@ -225,6 +225,208 @@
   </section>
 
 </main>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Modal إنشاء / تعديل امتحان أو واجب
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal" id="examModal" hidden>
+  <div class="modal__backdrop"></div>
+  <div class="modal__box modal__box--exam">
+
+    <div class="modal__head modal__head--exam">
+      <h3 id="examModalTitle">إنشاء امتحان</h3>
+      <button class="modal__x" id="closeExamModal" aria-label="إغلاق">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="modal__body modal__body--exam">
+
+      <!-- النوع: امتحان / واجب -->
+      <div class="exam-kind-tabs">
+        <label class="exam-kind-tab is-active" data-kind="exam">
+          <input type="radio" name="examKind" value="exam" checked>
+          <i class="fa-solid fa-file-pen"></i>
+          امتحان
+        </label>
+        <label class="exam-kind-tab" data-kind="assignment">
+          <input type="radio" name="examKind" value="assignment">
+          <i class="fa-solid fa-clipboard-check"></i>
+          واجب
+        </label>
+      </div>
+
+      <!-- ─── القسم 1: المعلومات الأساسية ─── -->
+      <div class="form-section">
+        <div class="form-section__t">
+          <i class="fa-solid fa-circle-info"></i>
+          المعلومات الأساسية
+        </div>
+
+        <div class="q-field">
+          <label><i class="fa-solid fa-heading"></i> العنوان <span class="req">*</span></label>
+          <input type="text" id="examTitle" class="q-input" placeholder="مثال: امتحان النحو - الوحدة الأولى">
+        </div>
+
+        <div class="q-field">
+          <label><i class="fa-solid fa-align-right"></i> الوصف (اختياري)</label>
+          <textarea id="examDesc" class="q-textarea" placeholder="وصف مختصر..."></textarea>
+        </div>
+      </div>
+
+      <!-- ─── القسم 2: الصف الدراسي ─── -->
+      <div class="form-section">
+        <div class="form-section__t">
+          <i class="fa-solid fa-layer-group"></i>
+          الصف الدراسي <span class="req">*</span>
+        </div>
+        <div class="checkbox-grid" id="gradesGrid">
+          <label class="checkbox-item">
+            <input type="checkbox" name="grade" value="الأول الإعدادي">
+            <i class="fa-solid fa-check box"></i>
+            الأول الإعدادي
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="grade" value="الثاني الإعدادي">
+            <i class="fa-solid fa-check box"></i>
+            الثاني الإعدادي
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="grade" value="الثالث الإعدادي">
+            <i class="fa-solid fa-check box"></i>
+            الثالث الإعدادي
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="grade" value="الأول الثانوي">
+            <i class="fa-solid fa-check box"></i>
+            الأول الثانوي
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="grade" value="الثاني الثانوي">
+            <i class="fa-solid fa-check box"></i>
+            الثاني الثانوي
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="grade" value="الثالث الثانوي">
+            <i class="fa-solid fa-check box"></i>
+            الثالث الثانوي
+          </label>
+        </div>
+      </div>
+
+      <!-- ─── القسم 3: النوع ─── -->
+      <div class="form-section">
+        <div class="form-section__t">
+          <i class="fa-solid fa-school"></i>
+          النوع <span class="req">*</span>
+        </div>
+        <div class="checkbox-grid checkbox-grid--2">
+          <label class="checkbox-item">
+            <input type="checkbox" name="type" value="عام">
+            <i class="fa-solid fa-check box"></i>
+            <i class="fa-solid fa-book-open" style="margin-inline-end:4px;color:var(--gold-3);"></i>
+            عام
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="type" value="أزهر">
+            <i class="fa-solid fa-check box"></i>
+            <i class="fa-solid fa-mosque" style="margin-inline-end:4px;color:var(--gold-3);"></i>
+            أزهر
+          </label>
+        </div>
+      </div>
+
+      <!-- ─── القسم 4: الفرع (يظهر للثانوي) ─── -->
+      <div class="form-section" id="branchesSection" hidden>
+        <div class="form-section__t">
+          <i class="fa-solid fa-code-branch"></i>
+          الفرع <span class="req">*</span>
+        </div>
+        <div class="checkbox-grid checkbox-grid--2">
+          <label class="checkbox-item">
+            <input type="checkbox" name="branch" value="علمي">
+            <i class="fa-solid fa-check box"></i>
+            <i class="fa-solid fa-flask" style="margin-inline-end:4px;color:var(--gold-3);"></i>
+            علمي
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="branch" value="أدبي">
+            <i class="fa-solid fa-check box"></i>
+            <i class="fa-solid fa-feather" style="margin-inline-end:4px;color:var(--gold-3);"></i>
+            أدبي
+          </label>
+        </div>
+      </div>
+
+      <!-- ─── القسم 5: الإعدادات ─── -->
+      <div class="form-section">
+        <div class="form-section__t">
+          <i class="fa-solid fa-sliders"></i>
+          الإعدادات
+        </div>
+
+        <div class="q-row">
+          <div class="q-field">
+            <label><i class="fa-solid fa-clock"></i> المدة (دقائق) <span class="req">*</span></label>
+            <input type="number" id="examDuration" class="q-input" value="60" min="1" max="300">
+          </div>
+          <div class="q-field">
+            <label><i class="fa-solid fa-star"></i> درجة النجاح</label>
+            <input type="number" id="examPassMarks" class="q-input" value="50" min="0">
+          </div>
+        </div>
+
+        <div class="q-row">
+          <div class="q-field">
+            <label><i class="fa-solid fa-calendar-plus"></i> يفتح في</label>
+            <input type="datetime-local" id="examOpensAt" class="q-input">
+          </div>
+          <div class="q-field">
+            <label><i class="fa-solid fa-calendar-xmark"></i> يقفل في <span class="req">*</span></label>
+            <input type="datetime-local" id="examClosesAt" class="q-input">
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── القسم 6: الأسئلة ─── -->
+      <div class="form-section">
+        <div class="questions-head">
+          <div class="form-section__t" style="margin-bottom:0">
+            <i class="fa-solid fa-list-check"></i>
+            الأسئلة
+          </div>
+          <div class="questions-count">
+            <b id="questionsCount">0</b> / <span id="questionsMax">15</span>
+          </div>
+        </div>
+
+        <div class="questions-list" id="questionsList"></div>
+
+        <button type="button" class="btn btn--line btn--block" id="addQuestionBtn" style="margin-top:14px">
+          <i class="fa-solid fa-plus"></i>
+          إضافة سؤال
+        </button>
+      </div>
+
+    </div>
+
+    <div class="modal__foot modal__foot--exam">
+      <button type="button" class="btn btn--line" id="cancelExamBtn">
+        <i class="fa-solid fa-xmark"></i>
+        إلغاء
+      </button>
+      <button type="button" class="btn btn--line" id="saveDraftBtn">
+        <i class="fa-solid fa-floppy-disk"></i>
+        حفظ كمسودة
+      </button>
+      <button type="button" class="btn btn--gold" id="publishExamBtn">
+        <i class="fa-solid fa-upload"></i>
+        نشر
+      </button>
+    </div>
+
+  </div>
+</div>
 
 <div class="toast-stack" id="toastStack"></div>
 
