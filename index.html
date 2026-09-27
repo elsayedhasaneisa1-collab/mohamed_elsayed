@@ -14,6 +14,20 @@
 <link rel="stylesheet" href="auth.css">
 <link rel="stylesheet" href="student.css">
 </head>
+<script>
+// امسح أي Service Worker قديم
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => {
+      r.unregister();
+      console.log('SW removed:', r.scope);
+    });
+  });
+  caches.keys().then(keys => {
+    keys.forEach(k => caches.delete(k));
+  });
+}
+</script>
 <body class="page-student">
 
 <div class="bg-stage">
