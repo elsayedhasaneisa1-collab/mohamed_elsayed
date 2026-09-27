@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    لوحة التحكم — منصة الأستاذ محمد عيسى
-   Lazy Loading + Limits (500 طالب)
+   Lazy Loading + Limits + استعلامات سريعة
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -13,37 +13,61 @@ let currentProfile = null;
 let cache = { pending: [], students: [], exams: [], attempts: [], pdf: [] };
 
 /* ═══════════════════════════════════════════════════════════════
-   الإحصائيات
+   الإحصائيات — نسخة سريعة
    ═══════════════════════════════════════════════════════════════ */
 async function loadStats() {
-  const [
-    { count: pendingCount },
-    { count: studentsCount },
-    { count: examsCount },
-    { count: attemptsCount },
-    { count: pdfCount },
-    { count: liveCount }
-  ] = await Promise.all([
-    supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').eq('is_active', false),
-    supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student').eq('is_active', true),
-    supabaseClient.from('exams').select('*', { count: 'exact', head: true }),
-    supabaseClient.from('attempts').select('*', { count: 'exact', head: true }),
-    supabaseClient.from('attempts').select('*', { count: 'exact', head: true }).eq('pdf_exported', true),
-    supabaseClient.from('exams').select('*', { count: 'exact', head: true }).eq('status', 'published').gte('closes_at', new Date().toISOString())
-  ]);
+  try {
+    // 1) نجيب البروفايلات بس (is_active + role)
+    const { data: profilesData } = await supabaseClient
+      .from('profiles')
+      .select('is_active, role')
+      .eq('role', 'student')
+      .limit(1000);
 
-  setText('statPending', pendingCount ?? 0);
-  setText('statStudents', studentsCount ?? 0);
-  setText('statExams', examsCount ?? 0);
-  setText('statAttempts', attemptsCount ?? 0);
-  setText('statPdf', pdfCount ?? 0);
-  setText('statLive', liveCount ?? 0);
+    const students = profilesData || [];
+    const pendingCount = students.filter(s => !s.is_active).length;
+    const studentsCount = students.filter(s => s.is_active).length;
 
-  setText('cntPending', pendingCount ?? 0);
-  setText('cntStudents', studentsCount ?? 0);
-  setText('cntExams', examsCount ?? 0);
-  setText('cntAttempts', attemptsCount ?? 0);
-  setText('cntPdf', attemptsCount ?? 0);
+    // 2) الامتحانات
+    const { data: examsData } = await supabaseClient
+      .from('exams')
+      .select('status, closes_at')
+      .limit(500);
+
+    const exams = examsData || [];
+    const examsCount = exams.length;
+    const now = new Date();
+    const liveCount = exams.filter(e =>
+      e.status === 'published' && new Date(e.closes_at) > now
+    ).length;
+
+    setText('statPending', pendingCount);
+    setText('statStudents', studentsCount);
+    setText('statExams', examsCount);
+    setText('statLive', liveCount);
+
+    // 3) المحاولات + PDF (بالتوازي)
+    const [attemptsRes, pdfRes] = await Promise.all([
+      supabaseClient.from('attempts').select('id', { count: 'exact', head: true }),
+      supabaseClient.from('attempts').select('id', { count: 'exact', head: true }).eq('pdf_exported', true)
+    ]);
+
+    const attemptsCount = attemptsRes.count ?? 0;
+    const pdfCount = pdfRes.count ?? 0;
+
+    setText('statAttempts', attemptsCount);
+    setText('statPdf', pdfCount);
+
+    // 4) التبويبات
+    setText('cntPending', pendingCount);
+    setText('cntStudents', studentsCount);
+    setText('cntExams', examsCount);
+    setText('cntAttempts', attemptsCount);
+    setText('cntPdf', attemptsCount);
+
+  } catch (err) {
+    console.error('Stats error:', err);
+  }
 }
 
 function setText(id, val) {
@@ -81,25 +105,34 @@ async function loadPending() {
   const c = document.getElementById('pendingContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
-  const { data, error } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('role', 'student')
-    .eq('is_active', false)
-    .order('created_at', { ascending: false })
-    .limit(50);
+  try {
+    const { data, error } = await supabaseClient
+      .from('profiles')
+      .select('id, username, full_name, phone, parent_phone, grade, type, branch, created_at')
+      .eq('role', 'student')
+      .eq('is_active', false)
+      .order('created_at', { ascending: false })
+      .limit(30);
 
-  if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
 
-  cache.pending = data || [];
+    cache.pending = data || [];
 
-  if (!data?.length) {
-    c.innerHTML = emptyState('fa-circle-check', 'مفيش حسابات قيد المراجعة', 'كل الحسابات اتفعلت');
-    return;
+    if (!data?.length) {
+      c.innerHTML = emptyState('fa-circle-check', 'مفيش حسابات قيد المراجعة', 'كل الحسابات اتفعلت');
+      return;
+    }
+
+    c.innerHTML = `<div class="cards-mobile">${data.map(pendingCard).join('')}</div>`;
+    bindPendingActions();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
   }
-
-  c.innerHTML = `<div class="cards-mobile">${data.map(pendingCard).join('')}</div>`;
-  bindPendingActions();
 }
 
 function pendingCard(p) {
@@ -182,18 +215,27 @@ async function loadStudents() {
   const c = document.getElementById('studentsContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
-  const { data, error } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('role', 'student')
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(100);
+  try {
+    const { data, error } = await supabaseClient
+      .from('profiles')
+      .select('id, username, full_name, phone, parent_phone, grade, type, branch, created_at')
+      .eq('role', 'student')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-  if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
 
-  cache.students = data || [];
-  renderStudents();
+    cache.students = data || [];
+    renderStudents();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
+  }
 }
 
 function renderStudents() {
@@ -278,23 +320,32 @@ async function loadExams() {
   const c = document.getElementById('examsContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
-  const { data, error } = await supabaseClient
-    .from('exams')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100);
+  try {
+    const { data, error } = await supabaseClient
+      .from('exams')
+      .select('id, title, grade, type, branch, duration_minutes, opens_at, closes_at, total_marks, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-  if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
 
-  cache.exams = data || [];
+    cache.exams = data || [];
 
-  if (!data?.length) {
-    c.innerHTML = emptyState('fa-file-pen', 'مفيش امتحانات', 'ابدأ بإنشاء امتحان جديد');
-    return;
+    if (!data?.length) {
+      c.innerHTML = emptyState('fa-file-pen', 'مفيش امتحانات', 'ابدأ بإنشاء امتحان جديد');
+      return;
+    }
+
+    c.innerHTML = `<div class="cards-mobile">${data.map(examCard).join('')}</div>`;
+    bindExamActions();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
   }
-
-  c.innerHTML = `<div class="cards-mobile">${data.map(examCard).join('')}</div>`;
-  bindExamActions();
 }
 
 function examCard(e) {
@@ -376,20 +427,29 @@ async function loadAttempts() {
   const c = document.getElementById('attemptsContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
-  const { data, error } = await supabaseClient
-    .from('attempts')
-    .select(`
-      *,
-      profiles:student_id (full_name, username, grade),
-      exams:exam_id (title, total_marks)
-    `)
-    .order('started_at', { ascending: false })
-    .limit(100);
+  try {
+    const { data, error } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, started_at, submitted_at,
+        profiles:student_id (full_name, username, grade),
+        exams:exam_id (title, total_marks)
+      `)
+      .order('started_at', { ascending: false })
+      .limit(50);
 
-  if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
 
-  cache.attempts = data || [];
-  renderAttempts();
+    cache.attempts = data || [];
+    renderAttempts();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
+  }
 }
 
 function renderAttempts() {
@@ -444,22 +504,31 @@ async function loadPdfList() {
   const c = document.getElementById('pdfContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
-  const { data, error } = await supabaseClient
-    .from('attempts')
-    .select(`
-      *,
-      profiles:student_id (full_name, username, grade, phone, parent_phone),
-      exams:exam_id (title, total_marks)
-    `)
-    .in('status', ['submitted', 'graded'])
-    .order('submitted_at', { ascending: false })
-    .limit(100);
+  try {
+    const { data, error } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, submitted_at, pdf_exported,
+        profiles:student_id (full_name, username, grade, phone, parent_phone),
+        exams:exam_id (title, total_marks)
+      `)
+      .in('status', ['submitted', 'graded'])
+      .order('submitted_at', { ascending: false })
+      .limit(50);
 
-  if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
 
-  cache.pdf = data || [];
-  renderPdfList();
-  updateDeleteBtn();
+    cache.pdf = data || [];
+    renderPdfList();
+    updateDeleteBtn();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
+  }
 }
 
 function renderPdfList() {
@@ -539,7 +608,7 @@ async function exportAttemptPdf(attempt) {
   const { data: answers, error } = await supabaseClient
     .from('answers')
     .select(`
-      *,
+      id, selected_choice_id, essay_text, marks_awarded,
       questions:question_id (question_text, question_type, marks),
       choices:selected_choice_id (choice_text)
     `)
@@ -709,7 +778,7 @@ function emptyState(icon, title, msg) {
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
-  // حماية + جلسة واحدة (من guard.js)
+  // حماية + جلسة واحدة
   const guard = await guardPage('admin');
   if (!guard) return;
 
@@ -721,7 +790,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // زرار الخروج
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     if (!confirm('تسجيل الخروج؟')) return;
-    // نقفل الجلسة
     await supabaseClient
       .from('sessions')
       .update({ is_active: false })
