@@ -24,17 +24,6 @@
   <div class="bg-vignette"></div>
 </div>
 
-<!-- حارس الأدمن -->
-<div class="guard-screen" id="guardScreen" hidden>
-  <div class="guard-screen__box">
-    <i class="fa-solid fa-shield-halved big"></i>
-    <h2>غير مصرح</h2>
-    <p>هذه الصفحة مخصصة للمدير فقط</p>
-    <a href="login.html" class="btn btn--gold">الرجوع لتسجيل الدخول</a>
-  </div>
-</div>
-
-<!-- الهيدر -->
 <header class="admin-top">
   <a href="admin.html" class="brand">
     <span class="brand__mark"><i class="fa-solid fa-graduation-cap"></i></span>
@@ -58,7 +47,6 @@
 
 <main class="admin-shell">
 
-  <!-- الإحصائيات -->
   <div class="admin-stats" id="statsGrid">
     <div class="astat">
       <div class="astat__ic"><i class="fa-solid fa-user-clock"></i></div>
@@ -92,7 +80,6 @@
     </div>
   </div>
 
-  <!-- التبويبات -->
   <div class="admin-tabs" role="tablist">
     <button class="admin-tabs__btn is-active" data-tab="pending">
       <i class="fa-solid fa-user-clock"></i>
@@ -121,7 +108,6 @@
     </button>
   </div>
 
-  <!-- 1. قيد المراجعة -->
   <section class="admin-panel is-active" data-panel="pending">
     <div class="panel-head">
       <div>
@@ -140,7 +126,6 @@
     </div>
   </section>
 
-  <!-- 2. الطلاب -->
   <section class="admin-panel" data-panel="students">
     <div class="panel-head">
       <div>
@@ -168,7 +153,6 @@
     </div>
   </section>
 
-  <!-- 3. الامتحانات -->
   <section class="admin-panel" data-panel="exams">
     <div class="panel-head">
       <div>
@@ -187,7 +171,6 @@
     </div>
   </section>
 
-  <!-- 4. المحاولات -->
   <section class="admin-panel" data-panel="attempts">
     <div class="panel-head">
       <div>
@@ -209,7 +192,6 @@
     </div>
   </section>
 
-  <!-- 5. تنزيل PDF -->
   <section class="admin-panel" data-panel="pdf">
     <div class="panel-head">
       <div>
@@ -249,6 +231,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <script src="auth.js"></script>
+<script src="guard.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>

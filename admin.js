@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    لوحة التحكم — منصة الأستاذ محمد عيسى
+   Lazy Loading + Limits (500 طالب)
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -10,31 +11,6 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 let currentUser = null;
 let currentProfile = null;
 let cache = { pending: [], students: [], exams: [], attempts: [], pdf: [] };
-
-/* ═══════════════════════════════════════════════════════════════
-   الحماية — الأدمن بس
-   ═══════════════════════════════════════════════════════════════ */
-async function guardAdmin() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session) { window.location.href = 'login.html'; return false; }
-
-  const { data: profile } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .maybeSingle();
-
-  if (!profile || profile.role !== 'admin') {
-    document.getElementById('guardScreen').hidden = false;
-    document.querySelector('.admin-top').hidden = true;
-    document.querySelector('.admin-shell').hidden = true;
-    return false;
-  }
-
-  currentUser = session.user;
-  currentProfile = profile;
-  return true;
-}
 
 /* ═══════════════════════════════════════════════════════════════
    الإحصائيات
@@ -76,14 +52,24 @@ function setText(id, val) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Tabs
+   Tabs + Lazy Loading
    ═══════════════════════════════════════════════════════════════ */
 function initTabs() {
+  const loaded = { pending: true };
+
   $$('.admin-tabs__btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
       $$('.admin-tabs__btn').forEach(b => b.classList.toggle('is-active', b === btn));
       $$('.admin-panel').forEach(p => p.classList.toggle('is-active', p.dataset.panel === tab));
+
+      if (!loaded[tab]) {
+        loaded[tab] = true;
+        if (tab === 'students') loadStudents();
+        else if (tab === 'exams') loadExams();
+        else if (tab === 'attempts') loadAttempts();
+        else if (tab === 'pdf') loadPdfList();
+      }
     });
   });
 }
@@ -100,7 +86,8 @@ async function loadPending() {
     .select('*')
     .eq('role', 'student')
     .eq('is_active', false)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -167,10 +154,7 @@ function bindPendingActions() {
             btn.innerHTML = '<i class="fa-solid fa-xmark"></i> رفض';
             return;
           }
-          const { error } = await supabaseClient
-            .from('profiles')
-            .delete()
-            .eq('id', id);
+          const { error } = await supabaseClient.from('profiles').delete().eq('id', id);
           if (error) throw error;
           Toast.warn('تم الرفض', `تم حذف حساب ${name}`);
         }
@@ -203,7 +187,8 @@ async function loadStudents() {
     .select('*')
     .eq('role', 'student')
     .eq('is_active', true)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -296,7 +281,8 @@ async function loadExams() {
   const { data, error } = await supabaseClient
     .from('exams')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -398,7 +384,7 @@ async function loadAttempts() {
       exams:exam_id (title, total_marks)
     `)
     .order('started_at', { ascending: false })
-    .limit(200);
+    .limit(100);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -466,7 +452,8 @@ async function loadPdfList() {
       exams:exam_id (title, total_marks)
     `)
     .in('status', ['submitted', 'graded'])
-    .order('submitted_at', { ascending: false });
+    .order('submitted_at', { ascending: false })
+    .limit(100);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -631,11 +618,8 @@ async function exportAttemptPdf(attempt) {
     .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
     .eq('id', attempt.id);
 
-  if (upErr) {
-    Toast.warn('تم التنزيل بس', 'فشل تحديث السجل');
-  } else {
-    Toast.success('تم التنزيل ✅', 'دلوقتي تقدر تمسح من القاعدة');
-  }
+  if (upErr) Toast.warn('تم التنزيل بس', 'فشل تحديث السجل');
+  else Toast.success('تم التنزيل ✅', 'دلوقتي تقدر تمسح من القاعدة');
 
   loadPdfList();
   loadStats();
@@ -724,32 +708,45 @@ function emptyState(icon, title, msg) {
    ═══════════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
+
+  // حماية + جلسة واحدة (من guard.js)
+  const guard = await guardPage('admin');
+  if (!guard) return;
+
+  currentUser = guard.session.user;
+  currentProfile = guard.profile;
+
   initTabs();
 
-  const ok = await guardAdmin();
-  if (!ok) return;
-
+  // زرار الخروج
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     if (!confirm('تسجيل الخروج؟')) return;
+    // نقفل الجلسة
+    await supabaseClient
+      .from('sessions')
+      .update({ is_active: false })
+      .eq('user_id', currentUser.id);
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
   });
 
+  // تحديث
   document.getElementById('refreshBtn')?.addEventListener('click', () => {
     loadStats();
-    loadPending();
-    loadStudents();
-    loadExams();
-    loadAttempts();
-    loadPdfList();
+    const active = document.querySelector('.admin-panel.is-active')?.dataset.panel;
+    if (active === 'pending') loadPending();
+    else if (active === 'students') loadStudents();
+    else if (active === 'exams') loadExams();
+    else if (active === 'attempts') loadAttempts();
+    else if (active === 'pdf') loadPdfList();
     Toast.info('تم التحديث', '');
   });
 
+  // بحث
   document.getElementById('searchPending')?.addEventListener('input', () => {
     const q = document.getElementById('searchPending').value.toLowerCase();
     $$('#pendingContainer .mcard').forEach(card => {
-      const txt = card.textContent.toLowerCase();
-      card.style.display = txt.includes(q) ? '' : 'none';
+      card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
     });
   });
 
@@ -764,10 +761,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     Toast.info('قريباً', 'إنشاء الامتحانات هيتضاف في التحديث القادم');
   });
 
+  // Lazy — نحمّل pending + stats بس
   loadStats();
   loadPending();
-  loadStudents();
-  loadExams();
-  loadAttempts();
-  loadPdfList();
 });

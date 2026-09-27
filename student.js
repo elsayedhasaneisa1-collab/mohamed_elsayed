@@ -11,37 +11,6 @@ let currentUser = null;
 let currentProfile = null;
 
 /* ═══════════════════════════════════════════════════════════════
-   حماية — الطالب المفعل بس
-   ═══════════════════════════════════════════════════════════════ */
-async function guardStudent() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session) { window.location.href = 'login.html'; return false; }
-
-  const { data: profile } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .maybeSingle();
-
-  if (!profile) { window.location.href = 'login.html'; return false; }
-
-  // الأدمن يتحول للوحة التحكم
-  if (profile.role === 'admin') { window.location.href = 'admin.html'; return false; }
-
-  // الطالب لازم يكون مفعّل
-  if (!profile.is_active) {
-    Toast.warn('حسابك قيد المراجعة ⏳', 'هيتم تفعيل حسابك قريباً من قِبل الإدارة');
-    await supabaseClient.auth.signOut();
-    setTimeout(() => window.location.href = 'login.html', 2000);
-    return false;
-  }
-
-  currentUser = session.user;
-  currentProfile = profile;
-  return true;
-}
-
-/* ═══════════════════════════════════════════════════════════════
    الترحيب
    ═══════════════════════════════════════════════════════════════ */
 function renderWelcome() {
@@ -99,14 +68,14 @@ async function loadAvailableExams() {
 
   const now = new Date().toISOString();
 
-  // الامتحانات المنشورة لصفه ولم تقفل
   const { data: exams, error } = await supabaseClient
     .from('exams')
     .select('*')
     .eq('status', 'published')
     .eq('grade', currentProfile.grade)
     .gte('closes_at', now)
-    .order('closes_at', { ascending: true });
+    .order('closes_at', { ascending: true })
+    .limit(50);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -115,7 +84,6 @@ async function loadAvailableExams() {
     return;
   }
 
-  // نجيب محاولات الطالب
   const examIds = exams.map(e => e.id);
   const { data: attempts } = await supabaseClient
     .from('attempts')
@@ -137,16 +105,13 @@ function examCard(exam, attempt) {
   const hoursLeft = Math.floor(diffMs / (1000 * 60 * 60));
   const daysLeft = Math.floor(hoursLeft / 24);
 
-  // وقت الإغلاق
   let closeLabel = '';
   let closeCls = '';
   if (diffMs < 0) {
     closeLabel = 'انتهى';
     closeCls = 'urgent';
   } else if (hoursLeft < 3) {
-    closeLabel = hoursLeft <= 0
-      ? 'أقل من ساعة'
-      : `باقي ${hoursLeft} ساعة`;
+    closeLabel = hoursLeft <= 0 ? 'أقل من ساعة' : `باقي ${hoursLeft} ساعة`;
     closeCls = 'urgent';
   } else if (hoursLeft < 24) {
     closeLabel = `باقي ${hoursLeft} ساعة`;
@@ -155,7 +120,6 @@ function examCard(exam, attempt) {
     closeLabel = `باقي ${daysLeft} يوم`;
   }
 
-  // حالة الطالب
   let actionBtn = '';
   if (attempt) {
     if (attempt.status === 'in_progress') {
@@ -195,8 +159,7 @@ function bindStartExam() {
   $$('[data-start]').forEach(btn => {
     btn.addEventListener('click', () => {
       const examId = btn.dataset.start;
-      Toast.info('قريباً', 'شاشة الامتحان هتتضاف في التحديث القادم');
-      // TODO: window.location.href = `exam.html?id=${examId}`;
+      window.location.href = `exam.html?id=${examId}`;
     });
   });
 }
@@ -216,7 +179,8 @@ async function loadDoneExams() {
     `)
     .eq('student_id', currentUser.id)
     .in('status', ['submitted', 'graded'])
-    .order('submitted_at', { ascending: false });
+    .order('submitted_at', { ascending: false })
+    .limit(50);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -300,27 +264,33 @@ function emptyState(icon, title, msg) {
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
-  const ok = await guardStudent();
-  if (!ok) return;
+  const guard = await guardPage('student');
+  if (!guard) return;
+
+  currentUser = guard.session.user;
+  currentProfile = guard.profile;
 
   renderWelcome();
 
   // زرار الخروج
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     if (!confirm('تسجيل الخروج؟')) return;
+    await supabaseClient
+      .from('sessions')
+      .update({ is_active: false })
+      .eq('user_id', currentUser.id);
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
   });
 
-  // رابط الـ bottom bar للامتحانات
+  // bottom bar
   document.querySelectorAll('.bottom-bar__btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', () => {
       document.querySelectorAll('.bottom-bar__btn').forEach(b => b.classList.remove('is-active'));
       btn.classList.add('is-active');
     });
   });
 
-  // تحميل البيانات
   loadStats();
   loadAvailableExams();
   loadDoneExams();

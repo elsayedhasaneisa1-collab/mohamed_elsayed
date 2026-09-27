@@ -7,13 +7,12 @@
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-/* ─────────────── الحالة ─────────────── */
 let currentUser = null;
 let currentProfile = null;
 let exam = null;
 let questions = [];
 let attempt = null;
-let answers = {}; // { questionId: { choiceId, essayText } }
+let answers = {};
 let currentIndex = 0;
 let timerInterval = null;
 let timeLeftMs = 0;
@@ -27,8 +26,11 @@ let examEnded = false;
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
-  const ok = await guard();
-  if (!ok) return;
+  const guard = await guardPage('student');
+  if (!guard) return;
+
+  currentUser = guard.session.user;
+  currentProfile = guard.profile;
 
   await loadExam();
   if (!exam) return;
@@ -36,27 +38,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupAntiCheat();
   setupEventListeners();
 });
-
-/* ─────────────── الحماية ─────────────── */
-async function guard() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session) { window.location.href = 'login.html'; return false; }
-
-  const { data: profile } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .maybeSingle();
-
-  if (!profile || profile.role !== 'student' || !profile.is_active) {
-    window.location.href = 'login.html';
-    return false;
-  }
-
-  currentUser = session.user;
-  currentProfile = profile;
-  return true;
-}
 
 /* ═══════════════════════════════════════════════════════════════
    تحميل الامتحان
@@ -72,7 +53,6 @@ async function loadExam() {
   }
 
   try {
-    // الامتحان
     const { data: examData, error: examErr } = await supabaseClient
       .from('exams')
       .select('*')
@@ -86,14 +66,12 @@ async function loadExam() {
       return;
     }
 
-    // نتأكد إنه لنفس الصف
     if (examData.grade !== currentProfile.grade) {
       Toast.error('غير مصرح', 'الامتحان ده مش لصفك');
       setTimeout(() => window.location.href = 'index.html', 1500);
       return;
     }
 
-    // نتأكد إن الامتحان مفتوح
     const now = new Date();
     if (new Date(examData.closes_at) < now) {
       Toast.error('انتهى', 'الامتحان ده اتقفل');
@@ -103,7 +81,6 @@ async function loadExam() {
 
     exam = examData;
 
-    // الأسئلة
     const { data: qs, error: qErr } = await supabaseClient
       .from('questions')
       .select('*')
@@ -116,7 +93,6 @@ async function loadExam() {
       return;
     }
 
-    // الاختيارات
     const qIds = qs.map(q => q.id);
     const { data: choices } = await supabaseClient
       .from('choices')
@@ -129,12 +105,8 @@ async function loadExam() {
       choices: (choices || []).filter(c => c.question_id === q.id)
     }));
 
-    // shuffle
-    if (exam.shuffle_questions) {
-      questions = shuffle(questions);
-    }
+    if (exam.shuffle_questions) questions = shuffle(questions);
 
-    // محاولة سابقة
     const { data: existingAttempt } = await supabaseClient
       .from('attempts')
       .select('*')
@@ -149,11 +121,9 @@ async function loadExam() {
         return;
       }
 
-      // عندنا محاولة جارية — نكملها
       attempt = existingAttempt;
       timeLeftMs = new Date(attempt.expires_at) - new Date();
 
-      // نحمل الإجابات المحفوظة
       const { data: savedAnswers } = await supabaseClient
         .from('answers')
         .select('*')
@@ -167,7 +137,6 @@ async function loadExam() {
       });
     }
 
-    // نعرض شاشة البدء
     showIntro();
 
   } catch (err) {
@@ -207,7 +176,6 @@ function showIntro() {
    ═══════════════════════════════════════════════════════════════ */
 async function startExam() {
   if (!attempt) {
-    // إنشاء محاولة جديدة
     const expiresAt = new Date(Date.now() + exam.duration_minutes * 60 * 1000).toISOString();
 
     const { data, error } = await supabaseClient
@@ -308,7 +276,7 @@ function renderQuestion() {
 
   if (q.question_type === 'mcq') {
     html += `<div class="mcq-choices">`;
-    q.choices.forEach((c, i) => {
+    q.choices.forEach(c => {
       const checked = saved.choiceId === c.id ? 'checked' : '';
       html += `
         <label class="mcq-choice">
@@ -337,7 +305,6 @@ function renderQuestion() {
   html += `</div>`;
   container.innerHTML = html;
 
-  // ربط الأحداث
   if (q.question_type === 'mcq') {
     $$(`input[name="q_${q.id}"]`).forEach(input => {
       input.addEventListener('change', () => {
@@ -356,7 +323,6 @@ function renderQuestion() {
     });
   }
 
-  // أزرار
   $('#prevBtn').disabled = currentIndex === 0;
   $('#nextBtn').innerHTML = currentIndex === questions.length - 1
     ? '<i class="fa-solid fa-paper-plane"></i> تسليم الامتحان'
@@ -390,7 +356,6 @@ function renderQuestionNav() {
 }
 
 function updateNavButtons() {
-  // نحدّث حالة الأسئلة في النافبار
   $$('.q-nav-btn').forEach((btn, i) => {
     const q = questions[i];
     if (!q) return;
@@ -419,7 +384,6 @@ async function saveAnswer(questionId) {
   const ans = answers[questionId] || {};
 
   try {
-    // نشوف لو موجودة
     const { data: existing } = await supabaseClient
       .from('answers')
       .select('id')
@@ -462,10 +426,8 @@ async function endExam(reason = 'submit') {
 
   Toast.info('جارٍ التسليم...', 'من فضلك استنى');
 
-  // احفظ كل الإجابات
   await saveAllAnswers();
 
-  // احسب الدرجة للـ MCQ
   let score = 0;
   for (const q of questions) {
     const ans = answers[q.id];
@@ -477,7 +439,6 @@ async function endExam(reason = 'submit') {
     }
   }
 
-  // تحديث المحاولة
   try {
     await supabaseClient
       .from('attempts')
@@ -491,12 +452,10 @@ async function endExam(reason = 'submit') {
     console.error(err);
   }
 
-  // خروج من fullscreen
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
   }
 
-  // شاشة النتيجة
   document.getElementById('examStage').hidden = true;
   document.getElementById('examResult').hidden = false;
   document.body.classList.remove('exam-locked');
@@ -516,13 +475,11 @@ async function endExam(reason = 'submit') {
    منع الغش
    ═══════════════════════════════════════════════════════════════ */
 function setupAntiCheat() {
-  // منع النسخ
   document.addEventListener('copy', e => { e.preventDefault(); });
   document.addEventListener('cut', e => { e.preventDefault(); });
   document.addEventListener('paste', e => { e.preventDefault(); });
   document.addEventListener('contextmenu', e => { e.preventDefault(); });
 
-  // منع اختصارات
   document.addEventListener('keydown', e => {
     if (e.key === 'F12') { e.preventDefault(); return; }
     if (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) {
@@ -533,7 +490,6 @@ function setupAntiCheat() {
     }
   });
 
-  // كشف الخروج من الشاشة
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && !examEnded) {
       registerCheat('خروج من الشاشة');
@@ -544,7 +500,6 @@ function setupAntiCheat() {
     if (!examEnded) registerCheat('فقدان التركيز');
   });
 
-  // منع الرجوع
   history.pushState(null, '', location.href);
   window.addEventListener('popstate', () => {
     history.pushState(null, '', location.href);
@@ -555,7 +510,6 @@ function registerCheat(reason) {
   if (examEnded) return;
   cheatCount++;
 
-  // سجّل في قاعدة البيانات
   if (attempt) {
     supabaseClient.from('cheat_logs').insert({
       attempt_id: attempt.id,
@@ -569,7 +523,6 @@ function registerCheat(reason) {
     return;
   }
 
-  // أظهر التحذير
   const warning = $('#cheatWarning');
   $('#cheatMsg').textContent = `تم رصد: ${reason}`;
   $('#cheatCount').textContent = cheatCount;

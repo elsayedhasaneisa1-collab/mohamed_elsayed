@@ -23,13 +23,11 @@
   <div class="bg-vignette"></div>
 </div>
 
-<!-- شاشة التحميل -->
 <div class="exam-loading" id="examLoading">
   <div class="loader"><span></span><span></span><span></span></div>
   <p>جارٍ تحميل الامتحان...</p>
 </div>
 
-<!-- شاشة البدء -->
 <div class="exam-intro" id="examIntro" hidden>
   <div class="exam-intro__box">
     <div class="exam-intro__icon"><i class="fa-solid fa-file-pen"></i></div>
@@ -56,10 +54,8 @@
   </div>
 </div>
 
-<!-- شاشة الامتحان -->
 <div class="exam-stage" id="examStage" hidden>
 
-  <!-- الهيدر -->
   <header class="exam-header">
     <div class="exam-header__info">
       <h2 id="examTitle">—</h2>
@@ -71,25 +67,18 @@
     </div>
   </header>
 
-  <!-- شريط التقدم -->
   <div class="exam-progress-bar">
     <i id="progressFill" style="width:0%"></i>
   </div>
 
-  <!-- السؤال -->
-  <main class="exam-main" id="questionContainer">
-    <!-- يتولد ديناميكياً -->
-  </main>
+  <main class="exam-main" id="questionContainer"></main>
 
-  <!-- التحكم -->
   <footer class="exam-footer">
     <button class="btn btn--line" id="prevBtn">
       <i class="fa-solid fa-arrow-right"></i>
       السابق
     </button>
-    <div class="exam-footer__nav" id="questionNav">
-      <!-- أرقام الأسئلة -->
-    </div>
+    <div class="exam-footer__nav" id="questionNav"></div>
     <button class="btn btn--gold" id="nextBtn">
       التالي
       <i class="fa-solid fa-arrow-left"></i>
@@ -98,7 +87,6 @@
 
 </div>
 
-<!-- شاشة النتيجة -->
 <div class="exam-result" id="examResult" hidden>
   <div class="exam-result__box">
     <div class="exam-result__icon">
@@ -117,7 +105,6 @@
   </div>
 </div>
 
-<!-- تحذير الغش -->
 <div class="cheat-warning" id="cheatWarning" hidden>
   <div class="cheat-warning__box">
     <i class="fa-solid fa-triangle-exclamation"></i>
@@ -132,6 +119,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="guard.js"></script>
 <script src="exam.js"></script>
 </body>
 </html>
