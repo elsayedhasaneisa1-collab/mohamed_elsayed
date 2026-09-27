@@ -323,17 +323,32 @@ function initSignupPage() {
     setBtnLoading(btn, true);
 
     try {
-      const { data: existing } = await supabaseClient
-        .from('profiles')
-        .select('id')
-        .eq('username', username)
-        .maybeSingle();
+      // ═══ 1) اسم المستخدم ═══
+const { data: existingUser } = await supabaseClient
+  .from('profiles')
+  .select('id')
+  .eq('username', username)
+  .maybeSingle();
 
-      if (existing) {
-        Toast.error('اسم المستخدم مأخوذ', 'جرّب اسم تاني');
-        setBtnLoading(btn, false);
-        return;
-      }
+if (existingUser) {
+  Toast.error('اسم المستخدم مأخوذ', 'جرّب اسم تاني');
+  setBtnLoading(btn, false);
+  return;
+}
+
+// ═══ 2) رقم هاتف الطالب (بس) ═══
+const { data: existingPhone } = await supabaseClient
+  .from('profiles')
+  .select('id')
+  .eq('phone', phone)
+  .maybeSingle();
+
+if (existingPhone) {
+  Toast.error('رقم الهاتف مسجل بالفعل', 'الرقم ده مستخدم لحساب تاني');
+  setFieldState(phoneInput.closest('.field'), 'invalid');
+  setBtnLoading(btn, false);
+  return;
+}
 
       const email = `${username}@manassa.local`;
 
