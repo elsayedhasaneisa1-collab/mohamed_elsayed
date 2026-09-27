@@ -628,3 +628,104 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   body.page-auth{padding-top:max(var(--safe-top),20px)}
   .auth-wrap{padding-top:30px}
 }
+/* ═══════════════════════════════════════════════════════════════
+   تأثير "الرقم مسجل بالفعل" — لمعة حمراء + نبض
+   ═══════════════════════════════════════════════════════════════ */
+
+.field.is-taken .field__input {
+  border-color: var(--err);
+  background: rgba(255, 92, 92, .08);
+  animation: fieldShake .5s var(--ease), errPulse 2s ease-in-out .5s infinite;
+  box-shadow: 0 0 0 3px rgba(255, 92, 92, .18);
+}
+
+.field.is-taken::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(255, 92, 92, .6);
+  animation: errRingPulse 1.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.field.is-taken .field__label {
+  color: var(--err);
+  animation: errLabelPulse 1.8s ease-in-out infinite;
+}
+
+.field.is-taken .field__label i {
+  color: var(--err);
+}
+
+/* أيقونة ❌ مكان ✓ */
+.field.is-taken::after {
+  content: "\f00d";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  position: absolute;
+  inset-inline-end: 14px;
+  top: 38px;
+  color: var(--err);
+  font-size: .9rem;
+  animation: popIn .3s var(--ease), errIconPulse 1.5s ease-in-out .3s infinite;
+  z-index: 1;
+}
+
+.field.is-taken:has(.field__toggle)::after {
+  inset-inline-end: 52px;
+}
+
+.field.is-taken .field__hint {
+  color: var(--err);
+  opacity: .8;
+}
+
+/* ─── الأنيميشن ─── */
+@keyframes errPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(255, 92, 92, .18);
+    border-color: var(--err);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(255, 92, 92, .28);
+    border-color: #ff7a7a;
+  }
+}
+
+@keyframes errRingPulse {
+  0%, 100% {
+    opacity: .5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: .15;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes errLabelPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .7; }
+}
+
+@keyframes errIconPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+@keyframes fieldShake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-8px); }
+  30% { transform: translateX(8px); }
+  45% { transform: translateX(-6px); }
+  60% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+  90% { transform: translateX(3px); }
+}
+
+/* ─── لمعة حمراء بتمر على الحقل ─── */
+.field.is-taken .field__input::placeholder {
+  color: rgba(255, 92, 92, .5);
+}

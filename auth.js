@@ -323,30 +323,22 @@ function initSignupPage() {
     setBtnLoading(btn, true);
 
     try {
-      // ═══ 1) اسم المستخدم ═══
-const { data: existingUser } = await supabaseClient
-  .from('profiles')
-  .select('id')
-  .eq('username', username)
-  .maybeSingle();
+    if (existingPhone) {
+  const field = phoneInput.closest('.field');
+  // شيل أي كلاس قديم
+  field.classList.remove('is-invalid', 'is-ok');
+  // ضيف كلاس "مأخوذ" — بتأثير أحمر نابض
+  field.classList.add('is-taken');
 
-if (existingUser) {
-  Toast.error('اسم المستخدم مأخوذ', 'جرّب اسم تاني');
-  setBtnLoading(btn, false);
-  return;
-}
-
-// ═══ 2) رقم هاتف الطالب (بس) ═══
-const { data: existingPhone } = await supabaseClient
-  .from('profiles')
-  .select('id')
-  .eq('phone', phone)
-  .maybeSingle();
-
-if (existingPhone) {
   Toast.error('رقم الهاتف مسجل بالفعل', 'الرقم ده مستخدم لحساب تاني');
-  setFieldState(phoneInput.closest('.field'), 'invalid');
   setBtnLoading(btn, false);
+
+  // رجّع الحقل طبيعي لما المستخدم يعدّل
+  phoneInput.addEventListener('input', function handler() {
+    field.classList.remove('is-taken');
+    phoneInput.removeEventListener('input', handler);
+  });
+
   return;
 }
 
