@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
    admin.js — لوحة التحكم
    منصة الأستاذ محمد عيسى
-   يدعم: الأدمن (كل الصلاحيات) + المدرس (قراءة + تنزيل PDF)
+   الأدمن + المدرس: نفس الصلاحيات الكاملة
    ⚠️ $ و $$ معرّفين في auth.js
    ⚠️ UI.confirm و UI.alert في ui.js
    ═══════════════════════════════════════════════════════════════ */
@@ -10,7 +10,8 @@
 
 let currentUser = null;
 let currentProfile = null;
-let isAdmin = false;
+let isStaff = false;   // أدمن أو مدرس
+let isAdmin = false;   // أدمن فقط (للتمييز)
 let cache = { pending: [], students: [], exams: [], attempts: [], pdf: [] };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -133,18 +134,17 @@ async function loadPending() {
 }
 
 function pendingCard(p) {
-  const actions = isAdmin
-    ? `
-      <div class="mcard__acts">
-        <button class="btn btn--gold btn--sm" data-action="approve" data-id="${p.id}">
-          <i class="fa-solid fa-check"></i> موافقة
-        </button>
-        <button class="btn btn--danger btn--sm" data-action="reject" data-id="${p.id}">
-          <i class="fa-solid fa-xmark"></i> رفض
-        </button>
-      </div>
-    `
-    : `<div class="mcard__acts"><span class="badge badge--mut"><i class="fa-solid fa-eye"></i> عرض فقط</span></div>`;
+  // المدرس والأدمن لهم نفس الصلاحية
+  const actions = `
+    <div class="mcard__acts">
+      <button class="btn btn--gold btn--sm" data-action="approve" data-id="${p.id}">
+        <i class="fa-solid fa-check"></i> موافقة
+      </button>
+      <button class="btn btn--danger btn--sm" data-action="reject" data-id="${p.id}">
+        <i class="fa-solid fa-xmark"></i> رفض
+      </button>
+    </div>
+  `;
 
   return `
     <div class="mcard" data-id="${p.id}">
@@ -166,8 +166,6 @@ function pendingCard(p) {
 }
 
 function bindPendingActions() {
-  if (!isAdmin) return;
-
   $$('#pendingContainer [data-action]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
@@ -283,18 +281,16 @@ function renderStudents() {
 }
 
 function studentCard(s) {
-  const actions = isAdmin
-    ? `
-      <div class="mcard__acts">
-        <button class="btn btn--line btn--sm" data-action="toggle" data-id="${s.id}">
-          <i class="fa-solid fa-ban"></i> إيقاف
-        </button>
-        <button class="btn btn--danger btn--sm" data-action="delete" data-id="${s.id}">
-          <i class="fa-solid fa-trash"></i> حذف
-        </button>
-      </div>
-    `
-    : `<div class="mcard__acts"><span class="badge badge--mut"><i class="fa-solid fa-eye"></i> عرض فقط</span></div>`;
+  const actions = `
+    <div class="mcard__acts">
+      <button class="btn btn--line btn--sm" data-action="toggle" data-id="${s.id}">
+        <i class="fa-solid fa-ban"></i> إيقاف
+      </button>
+      <button class="btn btn--danger btn--sm" data-action="delete" data-id="${s.id}">
+        <i class="fa-solid fa-trash"></i> حذف
+      </button>
+    </div>
+  `;
 
   return `
     <div class="mcard" data-id="${s.id}">
@@ -315,8 +311,6 @@ function studentCard(s) {
 }
 
 function bindStudentActions() {
-  if (!isAdmin) return;
-
   $$('#studentsContainer [data-action]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
@@ -406,21 +400,19 @@ function examCard(e) {
   else if (now > closes) statusBadge = '<span class="badge badge--err"><i class="fa-solid fa-lock"></i> مقفول</span>';
   else statusBadge = '<span class="badge badge--ok"><i class="fa-solid fa-play"></i> مفتوح</span>';
 
-  const actions = isAdmin
-    ? `
-      <div class="mcard__acts">
-        <button class="btn btn--line btn--sm" data-action="publish" data-id="${e.id}" ${e.status === 'published' ? 'disabled' : ''}>
-          <i class="fa-solid fa-upload"></i> نشر
-        </button>
-        <button class="btn btn--line btn--sm" data-action="close" data-id="${e.id}" ${e.status === 'closed' ? 'disabled' : ''}>
-          <i class="fa-solid fa-lock"></i> إغلاق
-        </button>
-        <button class="btn btn--danger btn--sm" data-action="delete" data-id="${e.id}">
-          <i class="fa-solid fa-trash"></i> حذف
-        </button>
-      </div>
-    `
-    : `<div class="mcard__acts"><span class="badge badge--mut"><i class="fa-solid fa-eye"></i> عرض فقط</span></div>`;
+  const actions = `
+    <div class="mcard__acts">
+      <button class="btn btn--line btn--sm" data-action="publish" data-id="${e.id}" ${e.status === 'published' ? 'disabled' : ''}>
+        <i class="fa-solid fa-upload"></i> نشر
+      </button>
+      <button class="btn btn--line btn--sm" data-action="close" data-id="${e.id}" ${e.status === 'closed' ? 'disabled' : ''}>
+        <i class="fa-solid fa-lock"></i> إغلاق
+      </button>
+      <button class="btn btn--danger btn--sm" data-action="delete" data-id="${e.id}">
+        <i class="fa-solid fa-trash"></i> حذف
+      </button>
+    </div>
+  `;
 
   return `
     <div class="mcard" data-id="${e.id}">
@@ -441,8 +433,6 @@ function examCard(e) {
 }
 
 function bindExamActions() {
-  if (!isAdmin) return;
-
   $$('#examsContainer [data-action]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
@@ -633,15 +623,13 @@ function pdfCard(a) {
   const done = a.pdf_exported === true;
   const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
 
-  const deleteBtn = (done && isAdmin)
+  const deleteBtn = done
     ? `<button class="btn btn--danger btn--sm" data-action="delete" data-id="${a.id}">
         <i class="fa-solid fa-trash"></i> مسح من القاعدة
       </button>`
-    : (done
-        ? `<span class="badge badge--mut"><i class="fa-solid fa-eye"></i> عرض فقط</span>`
-        : `<button class="btn btn--line btn--sm" disabled>
-            <i class="fa-solid fa-lock"></i> لازم تنزّل الأول
-          </button>`);
+    : `<button class="btn btn--line btn--sm" disabled>
+        <i class="fa-solid fa-lock"></i> لازم تنزّل الأول
+      </button>`;
 
   return `
     <div class="mcard" data-id="${a.id}">
@@ -678,8 +666,6 @@ function bindPdfActions() {
       if (action === 'download') {
         await exportAttemptPdf(attempt);
       } else if (action === 'delete') {
-        if (!isAdmin) { Toast.warn('غير مصرح', 'الأدمن فقط'); return; }
-
         const ok = await UI.confirm({
           type: 'warn',
           title: 'مسح من قاعدة البيانات؟',
@@ -824,19 +810,12 @@ async function downloadAllPdf() {
 function updateDeleteBtn() {
   const btn = document.getElementById('deleteExportedBtn');
   if (!btn) return;
-  if (!isAdmin) {
-    btn.disabled = true;
-    btn.style.display = 'none';
-    return;
-  }
   const count = cache.pdf.filter(a => a.pdf_exported).length;
   btn.disabled = count === 0;
   btn.innerHTML = `<i class="fa-solid fa-trash"></i> مسح اللي اتنزل (${count})`;
 }
 
 async function deleteExported() {
-  if (!isAdmin) { Toast.warn('غير مصرح', 'الأدمن فقط'); return; }
-
   const toDelete = cache.pdf.filter(a => a.pdf_exported);
   if (!toDelete.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات اتنزلت'); return; }
 
@@ -900,6 +879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const guard = await guardPage();
   if (!guard) return;
 
+  // المدرس أو الأدمن بس
   if (guard.profile.role !== 'admin' && guard.profile.role !== 'teacher') {
     window.location.href = 'index.html';
     return;
@@ -907,13 +887,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   currentUser = guard.session.user;
   currentProfile = guard.profile;
-  isAdmin = currentProfile.role === 'admin';
 
-  if (!isAdmin) {
+  // ⭐ المدرس له نفس صلاحيات الأدمن
+  isStaff = (currentProfile.role === 'admin' || currentProfile.role === 'teacher');
+  isAdmin = (currentProfile.role === 'admin');
+
+  // لو مدرس، غيّر العنوان
+  if (currentProfile.role === 'teacher') {
     const titleEl = document.querySelector('.admin-top__title h1');
     if (titleEl) titleEl.textContent = 'لوحة المدرس';
     const subtitleEl = document.querySelector('.admin-top__title small');
-    if (subtitleEl) subtitleEl.textContent = 'عرض الطلاب والامتحانات';
+    if (subtitleEl) subtitleEl.textContent = 'إدارة كاملة';
   }
 
   initTabs();
@@ -957,7 +941,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('deleteExportedBtn')?.addEventListener('click', deleteExported);
 
   document.getElementById('newExamBtn')?.addEventListener('click', () => {
-    if (!isAdmin) { Toast.warn('غير مصرح', 'الأدمن فقط'); return; }
+    // المدرس والأدمن لهم نفس الصلاحية
     Toast.info('قريباً', 'إنشاء الامتحانات هيتضاف في التحديث القادم');
   });
 
