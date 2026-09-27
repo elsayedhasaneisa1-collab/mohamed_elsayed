@@ -1,11 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════
    شاشة الامتحان — منصة الأستاذ محمد عيسى
+   ⚠️ $ و $$ معرّفين في auth.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
-
-const $  = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 let currentUser = null;
 let currentProfile = null;

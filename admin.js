@@ -1,12 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
    لوحة التحكم — منصة الأستاذ محمد عيسى
    Lazy Loading + Limits + استعلامات سريعة
+   ⚠️ $ و $$ معرّفين في auth.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
-
-const $  = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 let currentUser = null;
 let currentProfile = null;
@@ -17,7 +15,6 @@ let cache = { pending: [], students: [], exams: [], attempts: [], pdf: [] };
    ═══════════════════════════════════════════════════════════════ */
 async function loadStats() {
   try {
-    // 1) نجيب البروفايلات بس (is_active + role)
     const { data: profilesData } = await supabaseClient
       .from('profiles')
       .select('is_active, role')
@@ -28,7 +25,6 @@ async function loadStats() {
     const pendingCount = students.filter(s => !s.is_active).length;
     const studentsCount = students.filter(s => s.is_active).length;
 
-    // 2) الامتحانات
     const { data: examsData } = await supabaseClient
       .from('exams')
       .select('status, closes_at')
@@ -46,7 +42,6 @@ async function loadStats() {
     setText('statExams', examsCount);
     setText('statLive', liveCount);
 
-    // 3) المحاولات + PDF (بالتوازي)
     const [attemptsRes, pdfRes] = await Promise.all([
       supabaseClient.from('attempts').select('id', { count: 'exact', head: true }),
       supabaseClient.from('attempts').select('id', { count: 'exact', head: true }).eq('pdf_exported', true)
@@ -58,7 +53,6 @@ async function loadStats() {
     setText('statAttempts', attemptsCount);
     setText('statPdf', pdfCount);
 
-    // 4) التبويبات
     setText('cntPending', pendingCount);
     setText('cntStudents', studentsCount);
     setText('cntExams', examsCount);
@@ -778,7 +772,6 @@ function emptyState(icon, title, msg) {
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
-  // حماية + جلسة واحدة
   const guard = await guardPage('admin');
   if (!guard) return;
 
@@ -787,7 +780,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initTabs();
 
-  // زرار الخروج
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     if (!confirm('تسجيل الخروج؟')) return;
     await supabaseClient
@@ -798,7 +790,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = 'login.html';
   });
 
-  // تحديث
   document.getElementById('refreshBtn')?.addEventListener('click', () => {
     loadStats();
     const active = document.querySelector('.admin-panel.is-active')?.dataset.panel;
@@ -810,7 +801,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     Toast.info('تم التحديث', '');
   });
 
-  // بحث
   document.getElementById('searchPending')?.addEventListener('input', () => {
     const q = document.getElementById('searchPending').value.toLowerCase();
     $$('#pendingContainer .mcard').forEach(card => {
@@ -829,7 +819,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     Toast.info('قريباً', 'إنشاء الامتحانات هيتضاف في التحديث القادم');
   });
 
-  // Lazy — نحمّل pending + stats بس
   loadStats();
   loadPending();
 });

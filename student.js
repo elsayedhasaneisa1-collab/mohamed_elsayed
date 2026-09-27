@@ -1,11 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════
    الصفحة الرئيسية للطالب — منصة الأستاذ محمد عيسى
+   ⚠️ $ و $$ معرّفين في auth.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
-
-const $  = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 let currentUser = null;
 let currentProfile = null;
@@ -70,7 +68,7 @@ async function loadAvailableExams() {
 
   const { data: exams, error } = await supabaseClient
     .from('exams')
-    .select('*')
+    .select('id, title, description, duration_minutes, closes_at, total_marks')
     .eq('status', 'published')
     .eq('grade', currentProfile.grade)
     .gte('closes_at', now)
@@ -87,7 +85,7 @@ async function loadAvailableExams() {
   const examIds = exams.map(e => e.id);
   const { data: attempts } = await supabaseClient
     .from('attempts')
-    .select('*')
+    .select('id, exam_id, status')
     .eq('student_id', currentUser.id)
     .in('exam_id', examIds);
 
@@ -174,7 +172,7 @@ async function loadDoneExams() {
   const { data, error } = await supabaseClient
     .from('attempts')
     .select(`
-      *,
+      id, score, total_marks, status, submitted_at,
       exams:exam_id (title, total_marks, pass_marks)
     `)
     .eq('student_id', currentUser.id)
@@ -272,7 +270,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderWelcome();
 
-  // زرار الخروج
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     if (!confirm('تسجيل الخروج؟')) return;
     await supabaseClient
@@ -283,7 +280,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = 'login.html';
   });
 
-  // bottom bar
   document.querySelectorAll('.bottom-bar__btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.bottom-bar__btn').forEach(b => b.classList.remove('is-active'));
