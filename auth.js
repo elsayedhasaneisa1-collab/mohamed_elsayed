@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    auth.js — منصة الأستاذ محمد عيسى
-   مصادقة + Toast + $ و $$ + Supabase
+   الدخول برقم الهاتف — الإيميل الداخلي = phone@manassa.local
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -64,7 +64,7 @@ const Toast = {
 /* ─────────────── أدوات ─────────────── */
 function setFieldState(field, state) {
   if (!field) return;
-  field.classList.remove('is-invalid', 'is-ok');
+  field.classList.remove('is-invalid', 'is-ok', 'is-taken');
   if (state) field.classList.add(`is-${state}`);
 }
 
@@ -148,23 +148,47 @@ function initReveal() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   صفحة تسجيل الدخول
+   صفحة تسجيل الدخول — برقم الهاتف
    ═══════════════════════════════════════════════════════════════ */
 function initLoginPage() {
   const form = document.getElementById('loginForm');
   if (!form) return;
 
-  const usernameInput = document.getElementById('loginUsername');
+  const phoneInput    = document.getElementById('loginPhone');
   const passwordInput = document.getElementById('loginPassword');
   const btn = document.getElementById('loginBtn');
+
+  // فلترة الأرقام فقط
+  phoneInput?.addEventListener('input', () => {
+    phoneInput.value = phoneInput.value.replace(/\D/g, '').slice(0, 11);
+    const res = Validators.phone(phoneInput.value);
+    setFieldState(phoneInput.closest('.field'),
+      phoneInput.value ? (res.ok ? 'ok' : 'invalid') : null);
+  });
+
+  passwordInput?.addEventListener('blur', () => {
+    setFieldState(passwordInput.closest('.field'),
+      passwordInput.value ? 'ok' : 'invalid');
+  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const username = usernameInput.value.trim();
+    const phone = phoneInput.value.trim();
     const password = passwordInput.value;
 
-    if (!username || !password) {
+    let valid = true;
+    const phoneRes = Validators.phone(phone);
+    if (!phoneRes.ok) {
+      setFieldState(phoneInput.closest('.field'), 'invalid');
+      valid = false;
+    }
+    if (!password) {
+      setFieldState(passwordInput.closest('.field'), 'invalid');
+      valid = false;
+    }
+
+    if (!valid) {
       Toast.warn('تحقق من البيانات', 'املأ كل الحقول');
       return;
     }
@@ -172,11 +196,12 @@ function initLoginPage() {
     setBtnLoading(btn, true);
 
     try {
-      const email = `${username}@manassa.local`;
+      // الإيميل الداخلي = الرقم
+      const email = `${phone}@manassa.local`;
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
       if (error) {
-        Toast.error('فشل تسجيل الدخول', 'اسم المستخدم أو كلمة السر غير صحيحة');
+        Toast.error('فشل تسجيل الدخول', 'رقم الهاتف أو كلمة السر غير صحيحة');
         setBtnLoading(btn, false);
         return;
       }
@@ -323,26 +348,44 @@ function initSignupPage() {
     setBtnLoading(btn, true);
 
     try {
-    if (existingPhone) {
-  const field = phoneInput.closest('.field');
-  // شيل أي كلاس قديم
-  field.classList.remove('is-invalid', 'is-ok');
-  // ضيف كلاس "مأخوذ" — بتأثير أحمر نابض
-  field.classList.add('is-taken');
+      // ═══ 1) اسم المستخدم ═══
+      const { data: existingUser } = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle();
 
-  Toast.error('رقم الهاتف مسجل بالفعل', 'الرقم ده مستخدم لحساب تاني');
-  setBtnLoading(btn, false);
+      if (existingUser) {
+        Toast.error('اسم المستخدم مأخوذ', 'جرّب اسم تاني');
+        setFieldState(usernameInput.closest('.field'), 'invalid');
+        setBtnLoading(btn, false);
+        return;
+      }
 
-  // رجّع الحقل طبيعي لما المستخدم يعدّل
-  phoneInput.addEventListener('input', function handler() {
-    field.classList.remove('is-taken');
-    phoneInput.removeEventListener('input', handler);
-  });
+      // ═══ 2) رقم الهاتف ═══
+      const { data: existingPhone } = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .eq('phone', phone)
+        .maybeSingle();
 
-  return;
-}
+      if (existingPhone) {
+        const field = phoneInput.closest('.field');
+        field.classList.remove('is-invalid', 'is-ok');
+        field.classList.add('is-taken');
 
-      const email = `${username}@manassa.local`;
+        Toast.error('رقم الهاتف مسجل بالفعل', 'الرقم ده مستخدم لحساب تاني');
+        setBtnLoading(btn, false);
+
+        phoneInput.addEventListener('input', function handler() {
+          field.classList.remove('is-taken');
+          phoneInput.removeEventListener('input', handler);
+        });
+        return;
+      }
+
+      // ═══ 3) إنشاء الحساب — الإيميل = الرقم ═══
+      const email = `${phone}@manassa.local`;
 
       const { data: authData, error: authErr } = await supabaseClient.auth.signUp({
         email,
@@ -361,11 +404,14 @@ function initSignupPage() {
       });
 
       if (authErr) {
-        Toast.error('فشل التسجيل', authErr.message);
+        let msg = 'حدث خطأ أثناء إنشاء الحساب';
+        if (authErr.message?.includes('already registered')) msg = 'رقم الهاتف مسجل بالفعل';
+        Toast.error('فشل التسجيل', msg);
         setBtnLoading(btn, false);
         return;
       }
 
+      // تأكد من إنشاء البروفايل
       if (authData?.user?.id) {
         const { data: profileCheck } = await supabaseClient
           .from('profiles')
