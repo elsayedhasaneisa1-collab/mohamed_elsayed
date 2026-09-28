@@ -1,8 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    student.js — الصفحة الرئيسية للطالب
    منصة الأستاذ محمد عيسى
-   ⚠️ $ و $$ معرّفين في auth.js
-   ⚠️ UI.confirm في ui.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -29,7 +27,6 @@ async function loadStats() {
   const now = new Date().toISOString();
 
   const [examsRes, assignmentsRes, pendingRes, gradedRes] = await Promise.all([
-    // امتحانات متاحة
     supabaseClient
       .from('exams')
       .select('id', { count: 'exact', head: true })
@@ -39,7 +36,6 @@ async function loadStats() {
       .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
-    // واجبات متاحة
     supabaseClient
       .from('exams')
       .select('id', { count: 'exact', head: true })
@@ -49,14 +45,12 @@ async function loadStats() {
       .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
-    // قيد المراجعة
     supabaseClient
       .from('attempts')
       .select('id', { count: 'exact', head: true })
       .eq('student_id', currentUser.id)
       .eq('status', 'submitted'),
 
-    // تم التصحيح
     supabaseClient
       .from('attempts')
       .select('id', { count: 'exact', head: true })
@@ -240,7 +234,7 @@ function bindStartButtons() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   قسم "قيد المراجعة" (submitted)
+   قسم "قيد المراجعة"
    ═══════════════════════════════════════════════════════════════ */
 async function loadPendingAttempts() {
   const c = document.getElementById('pendingContainer');
@@ -302,7 +296,7 @@ function pendingAttemptCard(a) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   قسم "تم التصحيح" (graded)
+   قسم "تم التصحيح" — مع Modal التفاصيل
    ═══════════════════════════════════════════════════════════════ */
 async function loadGradedAttempts() {
   const c = document.getElementById('gradedContainer');
@@ -327,6 +321,7 @@ async function loadGradedAttempts() {
   }
 
   c.innerHTML = data.map(gradedAttemptCard).join('');
+  bindGradedAttemptClick();
 }
 
 function gradedAttemptCard(a) {
@@ -348,11 +343,11 @@ function gradedAttemptCard(a) {
     : `<span class="exam-card__kind exam-card__kind--exam"><i class="fa-solid fa-file-pen"></i> امتحان</span>`;
 
   const cardCls = isAssignment
-    ? 'exam-card exam-card--done exam-card--assignment'
-    : 'exam-card exam-card--done';
+    ? 'exam-card exam-card--done exam-card--assignment exam-card--clickable'
+    : 'exam-card exam-card--done exam-card--clickable';
 
   return `
-    <div class="${cardCls}">
+    <div class="${cardCls}" data-attempt-id="${a.id}">
       <div class="exam-card__head">
         <h3>${escapeHtml(exam.title || '—')}</h3>
         ${kindBadge}
@@ -369,8 +364,308 @@ function gradedAttemptCard(a) {
       <div class="exam-card__meta">
         <span><i class="fa-solid fa-calendar-check"></i> تم التصحيح: ${formatDate(a.graded_at || a.submitted_at)}</span>
       </div>
+      <div class="exam-card__acts">
+        <button class="btn btn--gold btn--sm" data-action="view-details" data-attempt-id="${a.id}">
+          <i class="fa-solid fa-circle-info"></i>
+          عرض التفاصيل
+        </button>
+      </div>
     </div>
   `;
+}
+
+function bindGradedAttemptClick() {
+  // الضغط على الكارت أو الزرار
+  $$('#gradedContainer [data-attempt-id]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="view-details"]')) {
+        e.stopPropagation();
+        const id = card.dataset.attemptId;
+        openStudentAttemptModal(id);
+        return;
+      }
+      // الضغط على الكارت كله
+      if (!e.target.closest('button')) {
+        const id = card.dataset.attemptId;
+        openStudentAttemptModal(id);
+      }
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Modal تفاصيل المحاولة (للطالب)
+   ═══════════════════════════════════════════════════════════════ */
+async function openStudentAttemptModal(attemptId) {
+  const modal = document.getElementById('studentAttemptModal');
+  const body = document.getElementById('studentAttemptBody');
+  if (!modal || !body) return;
+
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  body.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
+
+  try {
+    // 1) نجيب المحاولة
+    const { data: attempt, error: attErr } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, started_at, submitted_at, graded_at,
+        exams:exam_id (id, title, total_marks, pass_marks, kind, duration_minutes)
+      `)
+      .eq('id', attemptId)
+      .eq('student_id', currentUser.id)
+      .maybeSingle();
+
+    if (attErr || !attempt) {
+      body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'مش قادر أجيب التفاصيل');
+      return;
+    }
+
+    // 2) نجيب الإجابات + الأسئلة
+    const { data: answers, error: ansErr } = await supabaseClient
+      .from('answers')
+      .select(`
+        id, selected_choice_id, essay_text, marks_awarded, teacher_feedback,
+        questions:question_id (id, question_text, question_type, marks, order_index),
+        selected_choice:selected_choice_id (id, choice_text, is_correct)
+      `)
+      .eq('attempt_id', attemptId);
+
+    if (ansErr) {
+      body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', ansErr.message);
+      return;
+    }
+
+    // 3) نجيب كل الاختيارات للأسئلة MCQ
+    const mcqQuestionIds = (answers || [])
+      .filter(a => a.questions?.question_type === 'mcq')
+      .map(a => a.questions.id);
+
+    let allChoices = [];
+    if (mcqQuestionIds.length) {
+      const { data: choicesData } = await supabaseClient
+        .from('choices')
+        .select('*')
+        .in('question_id', mcqQuestionIds)
+        .order('order_index', { ascending: true });
+      allChoices = choicesData || [];
+    }
+
+    // 4) ترتيب
+    const sortedAnswers = (answers || []).sort((a, b) => {
+      const ai = a.questions?.order_index ?? 0;
+      const bi = b.questions?.order_index ?? 0;
+      return ai - bi;
+    });
+
+    // 5) نرندر
+    body.innerHTML = renderStudentAttempt(attempt, sortedAnswers, allChoices);
+
+  } catch (err) {
+    console.error('Student attempt error:', err);
+    body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', err.message || 'حاول تاني');
+  }
+}
+
+function closeStudentAttemptModal() {
+  const modal = document.getElementById('studentAttemptModal');
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.style.overflow = '';
+}
+
+function renderStudentAttempt(attempt, answers, allChoices) {
+  const exam = attempt.exams || {};
+  const pct = attempt.total_marks ? Math.round((attempt.score / attempt.total_marks) * 100) : 0;
+  const passed = attempt.total_marks && attempt.score >= (exam.pass_marks || 0);
+  const isAssignment = exam.kind === 'assignment';
+
+  // ─── Hero (النتيجة النهائية) ───
+  let barCls = '';
+  if (pct >= 75) barCls = 'percent-bar__fill--ok';
+  else if (pct >= 50) barCls = 'percent-bar__fill--warn';
+  else barCls = 'percent-bar__fill--err';
+
+  const hero = `
+    <div class="student-attempt-hero">
+      <div class="student-attempt-hero__icon ${passed ? 'is-pass' : 'is-fail'}">
+        <i class="fa-solid ${passed ? 'fa-trophy' : 'fa-circle-xmark'}"></i>
+      </div>
+      <div class="student-attempt-hero__info">
+        <h3>${escapeHtml(exam.title || '—')}</h3>
+        <p>
+          <span><i class="fa-solid ${isAssignment ? 'fa-clipboard-check' : 'fa-file-pen'}"></i> ${isAssignment ? 'واجب' : 'امتحان'}</span>
+          <span><i class="fa-solid fa-calendar-check"></i> ${formatDate(attempt.graded_at || attempt.submitted_at)}</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="student-attempt-result">
+      <div class="student-attempt-result__item">
+        <b>${attempt.score ?? 0}</b>
+        <span>الدرجة</span>
+      </div>
+      <div class="student-attempt-result__item">
+        <b>${attempt.total_marks ?? 0}</b>
+        <span>من</span>
+      </div>
+      <div class="student-attempt-result__item ${pct >= 75 ? 'is-ok' : (pct >= 50 ? 'is-warn' : 'is-err')}">
+        <b>${pct}%</b>
+        <span>النسبة</span>
+      </div>
+      <div class="student-attempt-result__item ${passed ? 'is-ok' : 'is-err'}">
+        <b>${passed ? '✓' : '✗'}</b>
+        <span>${passed ? 'ناجح' : 'يحتاج مراجعة'}</span>
+      </div>
+    </div>
+
+    <div class="percent-bar">
+      <div class="percent-bar__head">
+        <span><i class="fa-solid fa-chart-line"></i> النسبة النهائية</span>
+        <b>${pct}%</b>
+      </div>
+      <div class="percent-bar__track">
+        <div class="percent-bar__fill ${barCls}" style="width:${pct}%"></div>
+      </div>
+    </div>
+  `;
+
+  // ─── قائمة الأسئلة ───
+  let listHtml = '<div class="student-attempt-list">';
+
+  answers.forEach((ans, idx) => {
+    const q = ans.questions || {};
+    const isMcq = q.question_type === 'mcq';
+    const maxMarks = q.marks || 0;
+    const awarded = ans.marks_awarded ?? 0;
+    const earnedPct = maxMarks ? Math.round((awarded / maxMarks) * 100) : 0;
+
+    // حالة السؤال
+    let statusCls = '';
+    let statusLabel = '';
+    let statusIcon = '';
+
+    if (awarded === maxMarks) {
+      statusCls = 'is-correct';
+      statusLabel = 'إجابة كاملة';
+      statusIcon = 'fa-circle-check';
+    } else if (awarded === 0) {
+      statusCls = 'is-wrong';
+      statusLabel = 'إجابة خاطئة';
+      statusIcon = 'fa-circle-xmark';
+    } else {
+      statusCls = 'is-partial';
+      statusLabel = 'إجابة جزئية';
+      statusIcon = 'fa-circle-half-stroke';
+    }
+
+    const typeBadge = isMcq
+      ? '<span class="student-q-type student-q-type--mcq"><i class="fa-solid fa-list-ul"></i> اختيار</span>'
+      : '<span class="student-q-type student-q-type--essay"><i class="fa-solid fa-pen-fancy"></i> مقالي</span>';
+
+    // نص السؤال
+    const questionHtml = `
+      <div class="student-q-question">
+        ${escapeHtml(q.question_text || '')}
+      </div>
+    `;
+
+    // إجابة الطالب
+    let answerHtml = '';
+
+    if (isMcq) {
+      const selectedChoice = ans.selected_choice;
+      const choicesForQ = allChoices.filter(c => c.question_id === q.id);
+      const correctChoice = choicesForQ.find(c => c.is_correct);
+      const isEmpty = !ans.selected_choice_id;
+
+      answerHtml = `
+        <div class="student-q-answer-block">
+          <div class="student-q-answer-label">
+            <i class="fa-solid fa-user"></i>
+            إجابتك:
+          </div>
+          <div class="student-q-answer-text ${isEmpty ? 'is-empty' : (selectedChoice?.is_correct ? 'is-correct' : 'is-wrong')}">
+            ${isEmpty
+              ? 'لم تجب على السؤال'
+              : `${escapeHtml(selectedChoice?.choice_text || '')}
+                 ${selectedChoice?.is_correct
+                   ? '<i class="fa-solid fa-circle-check" style="color:var(--ok)"></i>'
+                   : '<i class="fa-solid fa-circle-xmark" style="color:var(--err)"></i>'}`}
+          </div>
+        </div>
+
+        ${!selectedChoice?.is_correct && correctChoice ? `
+          <div class="student-q-correct-block">
+            <div class="student-q-answer-label">
+              <i class="fa-solid fa-circle-check" style="color:var(--ok)"></i>
+              الإجابة الصحيحة:
+            </div>
+            <div class="student-q-answer-text is-correct">
+              ${escapeHtml(correctChoice.choice_text)}
+            </div>
+          </div>
+        ` : ''}
+      `;
+    } else {
+      const essayText = ans.essay_text || '';
+      const isEmpty = !essayText.trim();
+      answerHtml = `
+        <div class="student-q-answer-block">
+          <div class="student-q-answer-label">
+            <i class="fa-solid fa-pen-fancy"></i>
+            إجابتك:
+          </div>
+          <div class="student-q-answer-text ${isEmpty ? 'is-empty' : ''}">
+            ${isEmpty ? 'لم تجب على السؤال' : escapeHtml(essayText)}
+          </div>
+        </div>
+      `;
+    }
+
+    // تعليق المدرس
+    let feedbackHtml = '';
+    if (ans.teacher_feedback && ans.teacher_feedback.trim()) {
+      feedbackHtml = `
+        <div class="student-q-feedback">
+          <div class="student-q-feedback__head">
+            <i class="fa-solid fa-comment-dots"></i>
+            تعليق الأستاذ:
+          </div>
+          <div class="student-q-feedback__body">
+            ${escapeHtml(ans.teacher_feedback)}
+          </div>
+        </div>
+      `;
+    }
+
+    listHtml += `
+      <div class="student-q-item ${statusCls}">
+        <div class="student-q-head">
+          <div class="student-q-num">${idx + 1}</div>
+          ${typeBadge}
+          <div class="student-q-marks">
+            <i class="fa-solid fa-star"></i>
+            <b>${awarded}</b>
+            <span>/ ${maxMarks}</span>
+          </div>
+          <div class="student-q-status">
+            <i class="fa-solid ${statusIcon}"></i>
+            ${statusLabel}
+          </div>
+        </div>
+
+        ${questionHtml}
+        ${answerHtml}
+        ${feedbackHtml}
+      </div>
+    `;
+  });
+
+  listHtml += '</div>';
+
+  return hero + listHtml;
 }
 
 /* ─────────────── أدوات ─────────────── */
@@ -443,7 +738,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // تحميل كل الأقسام
+  /* ─── Modal أحداث ─── */
+  document.getElementById('closeStudentAttemptModal')?.addEventListener('click', closeStudentAttemptModal);
+  document.getElementById('studentAttemptModal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal__backdrop')) closeStudentAttemptModal();
+  });
+
+  // ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('studentAttemptModal');
+      if (modal && !modal.hidden) closeStudentAttemptModal();
+    }
+  });
+
+  // تحميل
   loadStats();
   loadAvailableExams();
   loadAssignments();

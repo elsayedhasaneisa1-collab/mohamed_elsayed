@@ -122,6 +122,30 @@
   </a>
 </nav>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     Modal تفاصيل المحاولة (للطالب)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal" id="studentAttemptModal" hidden>
+  <div class="modal__backdrop"></div>
+  <div class="modal__box modal__box--student-attempt">
+
+    <div class="modal__head modal__head--student-attempt">
+      <h3 id="studentAttemptTitle">
+        <i class="fa-solid fa-file-circle-check"></i>
+        تفاصيل المحاولة
+      </h3>
+      <button class="modal__x" id="closeStudentAttemptModal" aria-label="إغلاق">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="modal__body modal__body--student-attempt" id="studentAttemptBody">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+
+  </div>
+</div>
+
 <div class="toast-stack" id="toastStack"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
