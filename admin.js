@@ -946,8 +946,7 @@ async function exportSinglePdf(attempt) {
 
     updateProgress(20, 'جارٍ التحويل لصورة...');
 
-    // نحول لصورة
-    // نحول لصورة
+// نحول لصورة
 const canvasPromise = html2canvas(template.firstElementChild, {
   scale: 1.5,
   backgroundColor: '#ffffff',
@@ -960,14 +959,9 @@ const timeoutPromise = new Promise((_, reject) =>
   setTimeout(() => reject(new Error('التوليد خد وقت طويل')), 30000)
 );
 
-const canvas = await html2canvas(template.firstElementChild, {
-  scale: 1.5,
-  backgroundColor: '#ffffff',
-  useCORS: true,
-  logging: false
-});
+const canvas = await Promise.race([canvasPromise, timeoutPromise]);
 
-    updateProgress(70, 'جارٍ إنشاء PDF...');
+updateProgress(70, 'جارٍ إنشاء PDF...');
 
     // نعمل PDF
     const { jsPDF } = window.jspdf;
