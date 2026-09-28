@@ -1241,7 +1241,7 @@ async function exportSinglePdfWithoutDialog(attempt, done, total) {
   template.innerHTML = html;
 
   const canvas = await html2canvas(template.firstElementChild, {
-  scale: 2,
+  scale: 1.5,
   backgroundColor: '#ffffff',
   useCORS: true,
   logging: false,
