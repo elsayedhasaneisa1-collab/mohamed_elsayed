@@ -58,14 +58,14 @@
       <span>واجبات متاحة</span>
     </div>
     <div class="sstat">
-      <div class="sstat__ic"><i class="fa-solid fa-check-double"></i></div>
-      <b id="statDone">—</b>
-      <span>خلصتها</span>
+      <div class="sstat__ic"><i class="fa-solid fa-marker"></i></div>
+      <b id="statPending">—</b>
+      <span>قيد المراجعة</span>
     </div>
     <div class="sstat">
-      <div class="sstat__ic"><i class="fa-solid fa-chart-line"></i></div>
-      <b id="statAvg">—</b>
-      <span>المتوسط</span>
+      <div class="sstat__ic"><i class="fa-solid fa-circle-check"></i></div>
+      <b id="statGraded">—</b>
+      <span>تم تصحيحها</span>
     </div>
   </div>
 
@@ -83,9 +83,16 @@
     </div>
   </section>
 
-  <section class="student-section" id="done-section">
-    <h2><i class="fa-solid fa-check-double"></i> امتحانات وواجبات خلصتها</h2>
-    <div id="doneContainer">
+  <section class="student-section" id="pending-section">
+    <h2><i class="fa-solid fa-marker"></i> قيد المراجعة</h2>
+    <div id="pendingContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <section class="student-section" id="graded-section">
+    <h2><i class="fa-solid fa-circle-check"></i> تم تصحيحها</h2>
+    <div id="gradedContainer">
       <div class="loader"><span></span><span></span><span></span></div>
     </div>
   </section>
@@ -99,14 +106,18 @@
   </a>
   <a href="#exams-section" class="bottom-bar__btn" data-scroll="exams-section">
     <i class="fa-solid fa-file-pen"></i>
-    <span>الامتحانات</span>
+    <span>امتحانات</span>
   </a>
   <a href="#assignments-section" class="bottom-bar__btn" data-scroll="assignments-section">
     <i class="fa-solid fa-clipboard-check"></i>
-    <span>الواجبات</span>
+    <span>واجبات</span>
   </a>
-  <a href="#done-section" class="bottom-bar__btn" data-scroll="done-section">
-    <i class="fa-solid fa-chart-line"></i>
+  <a href="#pending-section" class="bottom-bar__btn" data-scroll="pending-section">
+    <i class="fa-solid fa-marker"></i>
+    <span>قيد المراجعة</span>
+  </a>
+  <a href="#graded-section" class="bottom-bar__btn" data-scroll="graded-section">
+    <i class="fa-solid fa-circle-check"></i>
     <span>درجاتي</span>
   </a>
 </nav>

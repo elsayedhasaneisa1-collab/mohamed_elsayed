@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
    admin.js — لوحة التحكم
    منصة الأستاذ محمد عيسى
+   الأدمن + المدرس: نفس الصلاحيات الكاملة
+   نظام تصحيح المقالي مدمج
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -13,9 +15,12 @@ let cache = {
   students: [],
   exams: [],
   attempts: [],
+  grading: [],
   pdf: []
 };
 let currentDetailsAttempt = null;
+let currentGradingAttempt = null;
+let gradingAnswers = {};
 
 let examModalState = {
   isOpen: false,
@@ -30,46 +35,33 @@ let examModalState = {
    ═══════════════════════════════════════════════════════════════ */
 async function loadStats() {
   try {
-    const { data: profilesData } = await supabaseClient
-      .from('profiles')
-      .select('is_active, role')
-      .eq('role', 'student')
-      .limit(1000);
+    const [profilesRes, examsRes, attemptsRes, toGradeRes, gradedRes] = await Promise.all([
+      supabaseClient.from('profiles').select('is_active, role').eq('role', 'student').limit(1000),
+      supabaseClient.from('exams').select('id', { count: 'exact', head: true }),
+      supabaseClient.from('attempts').select('id', { count: 'exact', head: true }),
+      supabaseClient.from('attempts').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
+      supabaseClient.from('attempts').select('id', { count: 'exact', head: true }).eq('status', 'graded')
+    ]);
 
-    const students = profilesData || [];
+    const students = profilesRes.data || [];
     const pendingCount = students.filter(s => !s.is_active).length;
     const studentsCount = students.filter(s => s.is_active).length;
-
-    const { data: examsData } = await supabaseClient
-      .from('exams')
-      .select('status, closes_at')
-      .limit(500);
-
-    const exams = examsData || [];
-    const examsCount = exams.length;
-    const now = new Date();
-    const liveCount = exams.filter(e =>
-      e.status === 'published' && new Date(e.closes_at) > now
-    ).length;
+    const examsCount = examsRes.count ?? 0;
+    const attemptsCount = attemptsRes.count ?? 0;
+    const toGradeCount = toGradeRes.count ?? 0;
+    const gradedCount = gradedRes.count ?? 0;
 
     setText('statPending', pendingCount);
     setText('statStudents', studentsCount);
     setText('statExams', examsCount);
-    setText('statLive', liveCount);
-
-    const [attemptsRes, pdfRes] = await Promise.all([
-      supabaseClient.from('attempts').select('id', { count: 'exact', head: true }),
-      supabaseClient.from('attempts').select('id', { count: 'exact', head: true }).eq('pdf_exported', true)
-    ]);
-
-    const attemptsCount = attemptsRes.count ?? 0;
-    const pdfCount = pdfRes.count ?? 0;
-
     setText('statAttempts', attemptsCount);
-    setText('statPdf', pdfCount);
+    setText('statToGrade', toGradeCount);
+    setText('statGraded', gradedCount);
+
     setText('cntPending', pendingCount);
     setText('cntStudents', studentsCount);
     setText('cntExams', examsCount);
+    setText('cntGrading', toGradeCount);
     setText('cntAttempts', attemptsCount);
     setText('cntPdf', attemptsCount);
 
@@ -99,6 +91,7 @@ function initTabs() {
         loaded[tab] = true;
         if (tab === 'students') loadStudents();
         else if (tab === 'exams') loadExams();
+        else if (tab === 'grading') loadGrading();
         else if (tab === 'attempts') loadAttempts();
         else if (tab === 'pdf') loadPdfList();
       }
@@ -505,7 +498,575 @@ function bindExamActions() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   4. المحاولات
+   4. تصحيح المقالي
+   ═══════════════════════════════════════════════════════════════ */
+async function loadGrading() {
+  const c = document.getElementById('gradingContainer');
+  c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, started_at, submitted_at, graded_at,
+        profiles:student_id (id, full_name, username, grade, phone),
+        exams:exam_id (id, title, total_marks, pass_marks, kind)
+      `)
+      .in('status', ['submitted', 'graded'])
+      .order('submitted_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
+
+    cache.grading = data || [];
+    renderGrading();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
+  }
+}
+
+function renderGrading() {
+  const c = document.getElementById('gradingContainer');
+  const filter = document.getElementById('filterGrading')?.value || 'pending';
+  const q = (document.getElementById('searchGrading')?.value || '').toLowerCase().trim();
+
+  let list = cache.grading;
+  if (filter === 'pending') list = list.filter(a => a.status === 'submitted');
+  else if (filter === 'graded') list = list.filter(a => a.status === 'graded');
+
+  if (q) {
+    list = list.filter(a => {
+      const s = a.profiles || {};
+      const e = a.exams || {};
+      return (s.full_name || '').toLowerCase().includes(q) ||
+             (s.username || '').toLowerCase().includes(q) ||
+             (s.phone || '').includes(q) ||
+             (e.title || '').toLowerCase().includes(q);
+    });
+  }
+
+  if (!list.length) {
+    c.innerHTML = emptyState('fa-marker', 'مفيش محاولات', filter === 'pending' ? 'كل المحاولات اتصححت' : 'جرب تغير الفلتر');
+    return;
+  }
+
+  c.innerHTML = `<div class="cards-mobile">${list.map(gradingCard).join('')}</div>`;
+  bindGradingActions();
+}
+
+function gradingCard(a) {
+  const student = a.profiles || {};
+  const exam = a.exams || {};
+  const isGraded = a.status === 'graded';
+  const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
+
+  const statusBadge = isGraded
+    ? '<span class="badge badge--ok"><i class="fa-solid fa-check"></i> تم التصحيح</span>'
+    : '<span class="badge badge--warn"><i class="fa-solid fa-marker"></i> محتاج تصحيح</span>';
+
+  return `
+    <div class="mcard mcard--clickable" data-attempt-id="${a.id}">
+      <div class="mcard__top">
+        <h4>${escapeHtml(student.full_name || '—')}</h4>
+        ${statusBadge}
+      </div>
+      <div class="mcard__rows">
+        <div><b>الامتحان:</b> ${escapeHtml(exam.title || '—')}</div>
+        <div><b>الصف:</b> ${escapeHtml(student.grade || '—')}</div>
+        <div><b>النتيجة:</b> ${a.score ?? 0}/${a.total_marks ?? 0} (${pct}%)</div>
+        <div><b>التسليم:</b> ${formatDate(a.submitted_at)}</div>
+        ${isGraded ? `<div><b>تم التصحيح:</b> ${formatDate(a.graded_at)}</div>` : ''}
+      </div>
+      <div class="mcard__acts">
+        <button class="btn btn--gold btn--sm" data-action="grade" data-id="${a.id}">
+          <i class="fa-solid fa-marker"></i>
+          ${isGraded ? 'عرض / تعديل التصحيح' : 'تصحيح الآن'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function bindGradingActions() {
+  // الضغط على الكارت
+  $$('#gradingContainer [data-attempt-id]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      const id = card.dataset.attemptId;
+      openGradingModal(id);
+    });
+  });
+
+  // زرار التصحيح
+  $$('#gradingContainer [data-action="grade"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      openGradingModal(id);
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Modal التصحيح
+   ═══════════════════════════════════════════════════════════════ */
+async function openGradingModal(attemptId) {
+  const modal = document.getElementById('gradingModal');
+  const body = document.getElementById('gradingBody');
+  if (!modal || !body) return;
+
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  body.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
+
+  try {
+    // 1) نجيب المحاولة
+    const { data: attempt, error: attErr } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, started_at, submitted_at, expires_at, graded_at,
+        profiles:student_id (id, full_name, username, grade, phone, parent_phone, type, branch),
+        exams:exam_id (id, title, total_marks, pass_marks, kind, duration_minutes)
+      `)
+      .eq('id', attemptId)
+      .maybeSingle();
+
+    if (attErr || !attempt) {
+      body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'مش قادر أجيب المحاولة');
+      return;
+    }
+
+    currentGradingAttempt = attempt;
+
+    // 2) نجيب الأسئلة + الإجابات
+    const { data: answers, error: ansErr } = await supabaseClient
+      .from('answers')
+      .select(`
+        id, selected_choice_id, essay_text, marks_awarded, teacher_feedback,
+        questions:question_id (id, question_text, question_type, marks, order_index),
+        choices:selected_choice_id (choice_text, is_correct)
+      `)
+      .eq('attempt_id', attemptId);
+
+    if (ansErr) {
+      body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', ansErr.message);
+      return;
+    }
+
+    // 3) نجيب كل الاختيارات لكل سؤال MCQ
+    const mcqQuestionIds = (answers || [])
+      .filter(a => a.questions?.question_type === 'mcq')
+      .map(a => a.questions.id);
+
+    let allChoices = [];
+    if (mcqQuestionIds.length) {
+      const { data: choicesData } = await supabaseClient
+        .from('choices')
+        .select('*')
+        .in('question_id', mcqQuestionIds)
+        .order('order_index', { ascending: true });
+      allChoices = choicesData || [];
+    }
+
+    // 4) ترتيب
+    const sortedAnswers = (answers || []).sort((a, b) => {
+      const ai = a.questions?.order_index ?? 0;
+      const bi = b.questions?.order_index ?? 0;
+      return ai - bi;
+    });
+
+    // 5) نحفظ الإجابات
+    gradingAnswers = {};
+    sortedAnswers.forEach(a => {
+      gradingAnswers[a.id] = {
+        marks_awarded: a.marks_awarded ?? (a.questions?.question_type === 'mcq' && a.choices?.is_correct ? a.questions.marks : 0),
+        teacher_feedback: a.teacher_feedback || '',
+        question: a.questions,
+        answer: a,
+        choices: allChoices.filter(c => c.question_id === a.questions?.id)
+      };
+    });
+
+    // 6) نرندر
+    body.innerHTML = renderGradingModal(attempt, sortedAnswers, allChoices);
+
+    bindGradingModalEvents();
+
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تاني');
+  }
+}
+
+function closeGradingModal() {
+  const modal = document.getElementById('gradingModal');
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.style.overflow = '';
+  currentGradingAttempt = null;
+  gradingAnswers = {};
+}
+
+function renderGradingModal(attempt, answers, allChoices) {
+  const student = attempt.profiles || {};
+  const exam = attempt.exams || {};
+  const isGraded = attempt.status === 'graded';
+
+  // معلومات رأس
+  const hero = `
+    <div class="grading-hero">
+      <div class="grading-hero__info">
+        <h3>${escapeHtml(student.full_name || '—')}</h3>
+        <div class="grading-hero__meta">
+          <span><i class="fa-solid fa-file-pen"></i> ${escapeHtml(exam.title || '—')}</span>
+          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(student.grade || '—')}</span>
+          <span><i class="fa-solid fa-calendar-check"></i> ${formatDate(attempt.submitted_at)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // قائمة الأسئلة
+  let listHtml = '<div class="grading-list">';
+
+  answers.forEach((ans, idx) => {
+    const q = ans.questions || {};
+    const isMcq = q.question_type === 'mcq';
+    const maxMarks = q.marks || 0;
+
+    // نوع
+    const typeBadge = isMcq
+      ? '<span class="grading-item__type grading-item__type--mcq"><i class="fa-solid fa-list-ul"></i> اختيار</span>'
+      : '<span class="grading-item__type grading-item__type--essay"><i class="fa-solid fa-pen-fancy"></i> مقالي</span>';
+
+    // نص السؤال
+    const questionHtml = `
+      <div class="grading-item__question">
+        ${escapeHtml(q.question_text || '')}
+      </div>
+    `;
+
+    // الإجابة
+    let answerHtml = '';
+    if (isMcq) {
+      // MCQ: نعرض الاختيارات
+      const correctChoice = ans.choices?.find(c => c.is_correct);
+      const selectedChoice = ans.answer?.choices;
+      const isCorrect = selectedChoice?.is_correct === true;
+      const isEmpty = !ans.answer?.selected_choice_id;
+
+      answerHtml = `
+        <div class="grading-item__answer">
+          <div class="grading-item__answer-label">
+            <i class="fa-solid fa-check-circle"></i>
+            الإجابة الصحيحة: <strong style="color:var(--ok)">${escapeHtml(correctChoice?.choice_text || '—')}</strong>
+          </div>
+          <div class="grading-item__answer-label" style="margin-top:10px">
+            <i class="fa-solid fa-user"></i>
+            إجابة الطالب:
+            ${isEmpty
+              ? '<strong style="color:var(--muted)">لم يجب</strong>'
+              : (isCorrect
+                  ? '<strong style="color:var(--ok)">صحيحة ✅</strong>'
+                  : '<strong style="color:var(--err)">خاطئة ❌</strong>')}
+          </div>
+          <div class="mcq-choices-review">
+            ${(ans.choices || []).map(c => {
+              const isSelected = ans.answer?.selected_choice_id === c.id;
+              const isCorrectChoice = c.is_correct;
+              let cls = 'mcq-choice-review';
+              let icon = '<i class="fa-solid fa-circle" style="opacity:.2"></i>';
+              let iconCls = 'mcq-choice-review__icon mcq-choice-review__icon--empty';
+
+              if (isCorrectChoice) {
+                cls += ' is-correct';
+                icon = '<i class="fa-solid fa-check"></i>';
+                iconCls = 'mcq-choice-review__icon';
+              }
+              if (isSelected && !isCorrectChoice) {
+                cls += ' is-selected is-wrong';
+                icon = '<i class="fa-solid fa-xmark"></i>';
+                iconCls = 'mcq-choice-review__icon';
+              }
+              if (isSelected && isCorrectChoice) {
+                cls += ' is-selected';
+              }
+
+              return `
+                <div class="${cls}">
+                  <div class="${iconCls}">${icon}</div>
+                  <div class="mcq-choice-review__text">${escapeHtml(c.choice_text)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    } else {
+      // مقالي: نعرض إجابة الطالب
+      const essayText = ans.answer?.essay_text || '';
+      const isEmpty = !essayText.trim();
+      answerHtml = `
+        <div class="grading-item__answer">
+          <div class="grading-item__answer-label">
+            <i class="fa-solid fa-pen-fancy"></i>
+            إجابة الطالب:
+          </div>
+          <div class="grading-item__answer-text ${isEmpty ? 'grading-item__answer-text--empty' : ''}">
+            ${isEmpty ? 'لم يجب على السؤال' : escapeHtml(essayText)}
+          </div>
+        </div>
+      `;
+    }
+
+    // حقل الدرجة + التعليق (للمقالي بس، MCQ تلقائي)
+    let marksHtml = '';
+    if (isMcq) {
+      // MCQ: نعرض الدرجة بس
+      const currentMarks = ans.marks_awarded ?? (ans.answer?.choices?.is_correct ? maxMarks : 0);
+      marksHtml = `
+        <div class="grading-empty-note">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          ${currentMarks > 0
+            ? `تم تصحيحه تلقائياً — الدرجة: <strong>${currentMarks}</strong> من ${maxMarks}`
+            : `تم تصحيحه تلقائياً — خاطئ — 0 من ${maxMarks}`}
+        </div>
+      `;
+    } else {
+      // مقالي: نعرض حقل الدرجة + التعليق
+      const currentMarks = ans.marks_awarded ?? 0;
+      marksHtml = `
+        <div class="grading-marks-row">
+          <div class="grading-field">
+            <label><i class="fa-solid fa-star"></i> الدرجة (من ${maxMarks})</label>
+            <input type="number"
+                   class="grading-input"
+                   data-answer-id="${ans.answer.id}"
+                   data-max="${maxMarks}"
+                   value="${currentMarks}"
+                   min="0"
+                   max="${maxMarks}"
+                   step="0.5">
+            <div class="grading-marks-hint">اكتب درجة من 0 لـ ${maxMarks}</div>
+          </div>
+          <div class="grading-field">
+            <label><i class="fa-solid fa-comment"></i> تعليق (اختياري)</label>
+            <textarea class="grading-textarea"
+                      data-answer-id="${ans.answer.id}"
+                      placeholder="ملاحظات للطالب...">${escapeHtml(ans.teacher_feedback || '')}</textarea>
+          </div>
+        </div>
+      `;
+    }
+
+    // item class
+    let itemCls = 'grading-item';
+    if (isMcq) {
+      itemCls += ' grading-item--mcq';
+      if (ans.answer?.choices?.is_correct) itemCls += ' is-correct';
+      else if (ans.answer?.selected_choice_id) itemCls += ' is-wrong';
+    }
+
+    listHtml += `
+      <div class="${itemCls}" data-answer-id="${ans.answer.id}">
+        <div class="grading-item__head">
+          <div class="grading-item__num">${idx + 1}</div>
+          ${typeBadge}
+          <div class="grading-item__marks-info">${maxMarks} درجة</div>
+        </div>
+        ${questionHtml}
+        ${answerHtml}
+        ${marksHtml}
+      </div>
+    `;
+  });
+
+  listHtml += '</div>';
+
+  // ملخص
+  const summary = renderGradingSummary(attempt, answers);
+
+  return hero + listHtml + summary;
+}
+
+function renderGradingSummary(attempt, answers) {
+  let autoScore = 0;     // MCQ
+  let manualScore = 0;   // مقالي
+  let essayCount = 0;
+
+  Object.values(gradingAnswers).forEach(ans => {
+    const q = ans.question;
+    if (!q) return;
+
+    if (q.question_type === 'mcq') {
+      if (ans.answer?.choices?.is_correct) autoScore += q.marks || 0;
+    } else {
+      essayCount++;
+      manualScore += Number(ans.marks_awarded) || 0;
+    }
+  });
+
+  const totalScore = autoScore + manualScore;
+  const totalMarks = attempt.total_marks || 0;
+  const pct = totalMarks ? Math.round((totalScore / totalMarks) * 100) : 0;
+
+  return `
+    <div class="grading-summary">
+      <div class="grading-summary__row">
+        <span><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold)"></i> درجات MCQ (تلقائي)</span>
+        <b>${autoScore}</b>
+      </div>
+      <div class="grading-summary__row">
+        <span><i class="fa-solid fa-marker" style="color:var(--info)"></i> درجات المقالي (${essayCount} سؤال)</span>
+        <b id="manualScoreLabel">${manualScore}</b>
+      </div>
+      <div class="grading-summary__row grading-summary__row--total">
+        <span><i class="fa-solid fa-star" style="color:var(--gold)"></i> المجموع</span>
+        <b id="totalScoreLabel">${totalScore} / ${totalMarks} (${pct}%)</b>
+      </div>
+    </div>
+  `;
+}
+
+function bindGradingModalEvents() {
+  const body = document.getElementById('gradingBody');
+
+  // حقول الدرجة (المقالي)
+  $$('.grading-input', body).forEach(input => {
+    input.addEventListener('input', () => {
+      const answerId = input.dataset.answerId;
+      const max = Number(input.dataset.max) || 0;
+      let val = Number(input.value) || 0;
+      if (val > max) { val = max; input.value = max; }
+      if (val < 0) { val = 0; input.value = 0; }
+
+      if (gradingAnswers[answerId]) {
+        gradingAnswers[answerId].marks_awarded = val;
+      }
+      updateGradingSummary();
+    });
+  });
+
+  // حقول التعليق
+  $$('.grading-textarea', body).forEach(ta => {
+    ta.addEventListener('input', () => {
+      const answerId = ta.dataset.answerId;
+      if (gradingAnswers[answerId]) {
+        gradingAnswers[answerId].teacher_feedback = ta.value;
+      }
+    });
+  });
+}
+
+function updateGradingSummary() {
+  if (!currentGradingAttempt) return;
+
+  let autoScore = 0;
+  let manualScore = 0;
+
+  Object.values(gradingAnswers).forEach(ans => {
+    const q = ans.question;
+    if (!q) return;
+
+    if (q.question_type === 'mcq') {
+      if (ans.answer?.choices?.is_correct) autoScore += q.marks || 0;
+    } else {
+      manualScore += Number(ans.marks_awarded) || 0;
+    }
+  });
+
+  const totalScore = autoScore + manualScore;
+  const totalMarks = currentGradingAttempt.total_marks || 0;
+  const pct = totalMarks ? Math.round((totalScore / totalMarks) * 100) : 0;
+
+  const manualLabel = document.getElementById('manualScoreLabel');
+  const totalLabel = document.getElementById('totalScoreLabel');
+
+  if (manualLabel) manualLabel.textContent = manualScore;
+  if (totalLabel) totalLabel.textContent = `${totalScore} / ${totalMarks} (${pct}%)`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   حفظ التصحيح
+   ═══════════════════════════════════════════════════════════════ */
+async function saveGrading() {
+  if (!currentGradingAttempt) return;
+
+  try {
+    const ok = await UI.confirm({
+      type: 'success',
+      title: 'حفظ التصحيح؟',
+      message: 'هيتم حفظ الدرجات + تحديث النتيجة النهائية للطالب.',
+      confirmText: 'حفظ',
+      cancelText: 'إلغاء'
+    });
+    if (!ok) return;
+
+    const attemptId = currentGradingAttempt.id;
+
+    // 1) نحدّث كل إجابة
+    for (const answerId in gradingAnswers) {
+      const ans = gradingAnswers[answerId];
+      const q = ans.question;
+      if (!q) continue;
+
+      // MCQ → تلقائي (بنسيبه زي ما هو)
+      // مقالي → نحدّث الدرجة والتعليق
+      if (q.question_type === 'essay') {
+        const { error } = await supabaseClient
+          .from('answers')
+          .update({
+            marks_awarded: Number(ans.marks_awarded) || 0,
+            teacher_feedback: ans.teacher_feedback || null
+          })
+          .eq('id', answerId);
+        if (error) throw error;
+      }
+    }
+
+    // 2) نحسب المجموع الكلي
+    let totalScore = 0;
+    Object.values(gradingAnswers).forEach(ans => {
+      const q = ans.question;
+      if (!q) return;
+      if (q.question_type === 'mcq') {
+        if (ans.answer?.choices?.is_correct) totalScore += q.marks || 0;
+      } else {
+        totalScore += Number(ans.marks_awarded) || 0;
+      }
+    });
+
+    // 3) نحدّث المحاولة
+    const { error: attemptErr } = await supabaseClient
+      .from('attempts')
+      .update({
+        score: totalScore,
+        status: 'graded',
+        graded_at: new Date().toISOString(),
+        graded_by: currentUser.id
+      })
+      .eq('id', attemptId);
+
+    if (attemptErr) throw attemptErr;
+
+    Toast.success('تم الحفظ ✅', 'الطالب هيتشوف النتيجة النهائية');
+    closeGradingModal();
+    loadGrading();
+    loadStats();
+
+  } catch (err) {
+    console.error('Save grading error:', err);
+    Toast.error('خطأ', err.message || 'حاول تاني');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. المحاولات
    ═══════════════════════════════════════════════════════════════ */
 async function loadAttempts() {
   const c = document.getElementById('attemptsContainer');
@@ -569,7 +1130,7 @@ function attemptCard(a, clickable = false) {
   const exam = a.exams || {};
   const statusMap = {
     in_progress: ['warn', 'fa-hourglass-half', 'قيد الحل'],
-    submitted: ['info', 'fa-paper-plane', 'تم التسليم'],
+    submitted: ['info', 'fa-marker', 'محتاج تصحيح'],
     graded: ['ok', 'fa-check-double', 'تم التصحيح'],
     expired: ['err', 'fa-clock', 'منتهي']
   };
@@ -577,7 +1138,6 @@ function attemptCard(a, clickable = false) {
 
   const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
   const time = calcDuration(a.started_at, a.submitted_at || a.expires_at);
-
   const cls2 = clickable ? 'mcard mcard--clickable' : 'mcard';
 
   return `
@@ -606,7 +1166,6 @@ function bindAttemptClick() {
     });
   });
 }
-
 /* ═══════════════════════════════════════════════════════════════
    5. PDF
    ═══════════════════════════════════════════════════════════════ */
@@ -751,6 +1310,7 @@ function bindPdfActions() {
 async function openStudentDetails(attemptId) {
   let attempt = cache.attempts.find(a => a.id === attemptId);
   if (!attempt) attempt = cache.pdf.find(a => a.id === attemptId);
+  if (!attempt) attempt = cache.grading.find(a => a.id === attemptId);
 
   if (!attempt) {
     const { data, error } = await supabaseClient
@@ -799,6 +1359,7 @@ function renderDetails(a) {
   const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
   const passed = a.total_marks && a.score >= (exam.pass_marks || 0);
   const time = calcDuration(a.started_at, a.submitted_at || a.expires_at);
+  const isGraded = a.status === 'graded';
 
   let barCls = '';
   if (pct >= 75) barCls = 'percent-bar__fill--ok';
@@ -806,6 +1367,10 @@ function renderDetails(a) {
   else barCls = 'percent-bar__fill--err';
 
   const initials = (student.full_name || '؟').trim().split(' ')[0].charAt(0);
+
+  const statusBadge = isGraded
+    ? '<span class="badge badge--ok"><i class="fa-solid fa-check"></i> تم التصحيح</span>'
+    : '<span class="badge badge--info"><i class="fa-solid fa-marker"></i> محتاج تصحيح</span>';
 
   return `
     <div class="details-hero">
@@ -815,6 +1380,7 @@ function renderDetails(a) {
         <p>
           <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(student.grade || '—')}</span>
           <span><i class="fa-solid fa-school"></i> ${escapeHtml(student.type || '—')}${student.branch ? ' - ' + escapeHtml(student.branch) : ''}</span>
+          ${statusBadge}
         </p>
       </div>
     </div>
@@ -895,17 +1461,16 @@ function renderDetails(a) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   توليد PDF — بالعربي (html2canvas)
+   توليد PDF — بالعربي
    ═══════════════════════════════════════════════════════════════ */
 async function exportSinglePdf(attempt) {
   try {
     showProgress('جارٍ توليد PDF...', 'من فضلك استنى');
 
-    // 1) نجيب الإجابات
     const { data: answers, error } = await supabaseClient
       .from('answers')
       .select(`
-        id, selected_choice_id, essay_text, marks_awarded,
+        id, selected_choice_id, essay_text, marks_awarded, teacher_feedback,
         questions:question_id (question_text, question_type, marks, order_index),
         choices:selected_choice_id (choice_text)
       `)
@@ -922,16 +1487,12 @@ async function exportSinglePdf(attempt) {
 
     updateProgress(15, 'جارٍ التحضير...');
 
-    // 2) نبني HTML
     const html = buildPdfHtml(attempt, sortedAnswers);
-
-    // 3) نحطها في PDF Template
     const template = document.getElementById('pdfTemplate');
     template.innerHTML = html;
 
     updateProgress(30, 'جارٍ التحويل لصورة...');
 
-    // 4) نحول لصورة
     const canvas = await html2canvas(template.firstElementChild, {
       scale: 1.5,
       backgroundColor: '#ffffff',
@@ -942,19 +1503,13 @@ async function exportSinglePdf(attempt) {
 
     updateProgress(70, 'جارٍ إنشاء PDF...');
 
-    // 5) نعمل PDF
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
     const pageWidth = 210;
     const pageHeight = 297;
     const imgWidth = pageWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
     if (imgHeight <= pageHeight) {
@@ -973,13 +1528,7 @@ async function exportSinglePdf(attempt) {
         pageCanvas.height = sourceHeight;
         const ctx = pageCanvas.getContext('2d');
 
-        ctx.drawImage(
-          canvas,
-          0, sourceY,
-          canvas.width, sourceHeight,
-          0, 0,
-          canvas.width, sourceHeight
-        );
+        ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
 
         const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
         const drawHeight = (sourceHeight * imgWidth) / canvas.width;
@@ -994,14 +1543,12 @@ async function exportSinglePdf(attempt) {
 
     updateProgress(90, 'جارٍ الحفظ...');
 
-    // 6) نحفظ
     const student = attempt.profiles || {};
     const exam = attempt.exams || {};
     const safeName = (student.username || 'student').replace(/[^a-z0-9_]/gi, '_');
     const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
     doc.save(`${safeName}_${safeExam}_${Date.now()}.pdf`);
 
-    // 7) نحدّث pdf_exported
     await supabaseClient
       .from('attempts')
       .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
@@ -1012,10 +1559,8 @@ async function exportSinglePdf(attempt) {
     setTimeout(() => {
       hideProgress();
       Toast.success('تم التنزيل ✅', 'دلوقتي تقدر تمسح من القاعدة');
-
       const inCache = cache.pdf.find(x => x.id === attempt.id);
       if (inCache) inCache.pdf_exported = true;
-
       renderPdfList();
       updateDeleteBtn();
       loadStats();
@@ -1037,7 +1582,6 @@ function buildPdfHtml(attempt, answers) {
   const pct = attempt.total_marks ? Math.round((attempt.score / attempt.total_marks) * 100) : 0;
   const passed = attempt.total_marks && attempt.score >= (exam.pass_marks || 0);
   const time = calcDuration(attempt.started_at, attempt.submitted_at);
-
   const examType = exam.kind === 'assignment' ? 'واجب' : 'امتحان';
 
   const rows = answers.map((ans, i) => {
@@ -1093,22 +1637,10 @@ function buildPdfHtml(attempt, answers) {
       </div>
 
       <div class="pdf-result">
-        <div class="pdf-result__item">
-          <b>${attempt.score ?? 0}</b>
-          <span>الدرجة</span>
-        </div>
-        <div class="pdf-result__item">
-          <b>${attempt.total_marks ?? 0}</b>
-          <span>الدرجة الكلية</span>
-        </div>
-        <div class="pdf-result__item">
-          <b>${pct}%</b>
-          <span>النسبة</span>
-        </div>
-        <div class="pdf-result__item">
-          <b>${passed ? '✓' : '✗'}</b>
-          <span>${passed ? 'ناجح' : 'راسب'}</span>
-        </div>
+        <div class="pdf-result__item"><b>${attempt.score ?? 0}</b><span>الدرجة</span></div>
+        <div class="pdf-result__item"><b>${attempt.total_marks ?? 0}</b><span>الدرجة الكلية</span></div>
+        <div class="pdf-result__item"><b>${pct}%</b><span>النسبة</span></div>
+        <div class="pdf-result__item"><b>${passed ? '✓' : '✗'}</b><span>${passed ? 'ناجح' : 'راسب'}</span></div>
       </div>
 
       <div class="pdf-section" style="background:#fff;border:0;padding:0;">
@@ -1162,10 +1694,7 @@ async function downloadAllPdf() {
     try {
       await exportSinglePdfWithoutDialog(attempt, done, list.length);
       done++;
-      updateProgress(
-        (done / list.length) * 100,
-        `${done} / ${list.length}`
-      );
+      updateProgress((done / list.length) * 100, `${done} / ${list.length}`);
     } catch (err) {
       console.error('فشل:', attempt.id, err);
     }
@@ -1177,7 +1706,6 @@ async function downloadAllPdf() {
   loadStats();
 }
 
-/* ─── نفس الدالة بس بدون dialog ─── */
 async function exportSinglePdfWithoutDialog(attempt, done, total) {
   const { data: answers, error } = await supabaseClient
     .from('answers')
@@ -1201,7 +1729,6 @@ async function exportSinglePdfWithoutDialog(attempt, done, total) {
   const template = document.getElementById('pdfTemplate');
   template.innerHTML = html;
 
-  // ✅ كود نظيف بدون تكرار
   const canvas = await html2canvas(template.firstElementChild, {
     scale: 1.5,
     backgroundColor: '#ffffff',
@@ -1317,7 +1844,6 @@ async function deleteExported() {
   loadPdfList();
   loadStats();
 }
-
 /* ═══════════════════════════════════════════════════════════════
    Modal إنشاء امتحان
    ═══════════════════════════════════════════════════════════════ */
@@ -1947,6 +2473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (active === 'pending') loadPending();
     else if (active === 'students') loadStudents();
     else if (active === 'exams') loadExams();
+    else if (active === 'grading') loadGrading();
     else if (active === 'attempts') loadAttempts();
     else if (active === 'pdf') loadPdfList();
     Toast.info('تم التحديث', '');
@@ -1965,6 +2492,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('filterAttempts')?.addEventListener('change', renderAttempts);
   document.getElementById('searchAttempts')?.addEventListener('input', renderAttempts);
   document.getElementById('searchPdf')?.addEventListener('input', renderPdfList);
+  document.getElementById('searchGrading')?.addEventListener('input', renderGrading);
+  document.getElementById('filterGrading')?.addEventListener('change', renderGrading);
 
   /* ─── PDF ─── */
   document.getElementById('downloadAllPdfBtn')?.addEventListener('click', downloadAllPdf);
@@ -1988,8 +2517,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  $$('input[name="grade"]').forEach(i => i.addEventListener('change', updateBranchesVisibility));
-  document.querySelectorAll('input[name="type"]').forEach(function(i){i.addEventListener('change',updateBranchesVisibility);});
+  document.querySelectorAll('input[name="grade"]').forEach(function(i) {
+    i.addEventListener('change', updateBranchesVisibility);
+  });
+  document.querySelectorAll('input[name="type"]').forEach(function(i) {
+    i.addEventListener('change', updateBranchesVisibility);
+  });
 
   document.getElementById('addQuestionBtn')?.addEventListener('click', addQuestion);
   document.getElementById('saveDraftBtn')?.addEventListener('click', () => saveExam('draft'));
@@ -2008,6 +2541,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     closeStudentDetails();
     await exportSinglePdf(att);
   });
+
+  /* ─── Modal التصحيح ─── */
+  document.getElementById('closeGradingModal')?.addEventListener('click', closeGradingModal);
+  document.getElementById('cancelGradingBtn')?.addEventListener('click', closeGradingModal);
+  document.getElementById('gradingModal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal__backdrop')) closeGradingModal();
+  });
+
+  document.getElementById('saveGradingBtn')?.addEventListener('click', saveGrading);
 
   /* ─── تحميل أولي ─── */
   loadStats();

@@ -59,7 +59,7 @@ body.page-student{
 }
 .welcome p{color:var(--muted);font-size:.88rem}
 
-/* ─────────────── إحصائيات الطالب ─────────────── */
+/* ─────────────── الإحصائيات ─────────────── */
 .student-stats{
   display:grid;grid-template-columns:repeat(2,1fr);
   gap:10px;margin-bottom:26px;
@@ -143,7 +143,6 @@ body.page-student{
   background:linear-gradient(180deg, var(--ok), transparent);
 }
 
-/* كارت الواجب بلون مختلف شوية */
 .exam-card--assignment::before{
   background:linear-gradient(180deg, var(--info), transparent);
 }
@@ -250,6 +249,52 @@ body.page-student{
 .exam-card__score--err .exam-card__score-num{color:var(--err)}
 .exam-card__score--err .exam-card__score-label i{color:var(--err)}
 
+/* كارت "قيد المراجعة" */
+.exam-card--pending::before{
+  background:linear-gradient(180deg, var(--info), transparent);
+  opacity:1;
+}
+.exam-card--pending:hover{
+  background:linear-gradient(160deg, rgba(90,200,250,.07), rgba(255,255,255,.02));
+  box-shadow:0 20px 40px -28px rgba(90,200,250,.5);
+}
+
+.exam-card__score--pending{
+  background:rgba(90,200,250,.08);
+  border-color:rgba(90,200,250,.3);
+  justify-content:center;
+  gap:14px;
+}
+.exam-card__score--pending .exam-card__score-num{
+  background:rgba(90,200,250,.15);
+  border:1px solid rgba(90,200,250,.35);
+  color:var(--info);
+  border-radius:12px;
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  font-size:1.2rem;
+  flex-shrink:0;
+  padding:0;
+}
+.exam-card__score--pending .exam-card__score-num i{
+  color:var(--info);
+}
+.exam-card__score--pending .exam-card__score-label{
+  color:var(--info);
+  font-weight:600;
+  font-size:.85rem;
+}
+.exam-card__score--pending .exam-card__score-label i{
+  color:var(--info);
+  animation:qPulse 2s ease-in-out infinite;
+}
+@keyframes qPulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.15)}
+}
+
 .exam-card__acts{
   display:flex;gap:8px;flex-wrap:wrap;
 }
@@ -281,10 +326,11 @@ body.page-student{
 .loader span:nth-child(3){animation-delay:.28s;background:var(--gold-deep)}
 @keyframes bounce{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}
 
-/* ─────────────── Bottom Bar ─────────────── */
+/* ─────────────── Bottom Bar (5 أزرار) ─────────────── */
 .bottom-bar{
   position:fixed;bottom:0;inset-inline:0;z-index:70;
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
   align-items:stretch;
   background:rgba(10,10,10,.94);
   backdrop-filter:blur(22px) saturate(160%);
@@ -296,16 +342,18 @@ body.page-student{
 .bottom-bar__btn{
   position:relative;
   display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:5px;
-  padding:11px 4px;font-size:.68rem;font-weight:600;
+  align-items:center;justify-content:center;gap:4px;
+  padding:10px 2px;font-size:.62rem;font-weight:600;
   color:var(--muted);
   transition:color .28s,background .28s;
   font-family:'Cairo',sans-serif;
   -webkit-tap-highlight-color:transparent;
   text-decoration:none;
+  text-align:center;
+  line-height:1.2;
 }
 .bottom-bar__btn i{
-  font-size:1.15rem;
+  font-size:1.05rem;
   transition:transform .32s var(--ease);
 }
 .bottom-bar__btn:hover{color:var(--gold-2)}
@@ -313,7 +361,7 @@ body.page-student{
 .bottom-bar__btn.is-active{color:var(--gold-2)}
 .bottom-bar__btn.is-active::before{
   content:"";position:absolute;top:0;
-  width:34px;height:2.5px;
+  width:32px;height:2.5px;
   border-radius:0 0 4px 4px;
   background:var(--gold);
   box-shadow:0 0 12px var(--gold);
@@ -325,14 +373,14 @@ body.page-student{
     inset-inline-start:50%;
     transform:translateX(50%);
     bottom:18px;
-    width:min(600px,92vw);
+    width:min(720px,92vw);
     border-radius:999px;
     border:1px solid var(--line);
     box-shadow:0 22px 50px -20px rgba(0,0,0,.95), var(--shadow-gold);
     padding-bottom:0;
   }
   [dir="rtl"] .bottom-bar{transform:translateX(50%)}
-  .bottom-bar__btn{padding:14px 4px;border-radius:999px}
+  .bottom-bar__btn{padding:14px 4px;border-radius:999px;font-size:.7rem;}
   .bottom-bar__btn.is-active{background:rgba(230,184,0,.1)}
   body.page-student{padding-bottom:120px}
 }
@@ -346,6 +394,13 @@ body.page-student{
   .sstat b{font-size:1.3rem}
   .exam-card{padding:14px}
   .exam-card__acts .btn{flex:1 1 100%}
+  .bottom-bar__btn{font-size:.58rem;padding:9px 1px}
+  .bottom-bar__btn i{font-size:1rem}
+}
+
+@media(max-width:380px){
+  .bottom-bar__btn{font-size:.52rem;padding:8px 1px}
+  .bottom-bar__btn i{font-size:.92rem}
 }
 
 /* ─────────────── Animations ─────────────── */

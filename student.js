@@ -10,9 +10,7 @@
 let currentUser = null;
 let currentProfile = null;
 
-/* ═══════════════════════════════════════════════════════════════
-   الترحيب
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الترحيب ─────────────── */
 function renderWelcome() {
   const firstName = (currentProfile.full_name || '').split(' ')[0] || 'طالب';
   $('#studentName').textContent = firstName;
@@ -26,13 +24,12 @@ function renderWelcome() {
   $('#studentMeta').textContent = meta;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الإحصائيات
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الإحصائيات ─────────────── */
 async function loadStats() {
   const now = new Date().toISOString();
 
-  const [examsRes, assignmentsRes, attemptsRes] = await Promise.all([
+  const [examsRes, assignmentsRes, pendingRes, gradedRes] = await Promise.all([
+    // امتحانات متاحة
     supabaseClient
       .from('exams')
       .select('id', { count: 'exact', head: true })
@@ -42,6 +39,7 @@ async function loadStats() {
       .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
+    // واجبات متاحة
     supabaseClient
       .from('exams')
       .select('id', { count: 'exact', head: true })
@@ -51,55 +49,38 @@ async function loadStats() {
       .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
+    // قيد المراجعة
     supabaseClient
       .from('attempts')
-      .select('score, total_marks, status')
+      .select('id', { count: 'exact', head: true })
       .eq('student_id', currentUser.id)
+      .eq('status', 'submitted'),
+
+    // تم التصحيح
+    supabaseClient
+      .from('attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('student_id', currentUser.id)
+      .eq('status', 'graded')
   ]);
 
-  const availableCount = examsRes.count || 0;
-  const assignmentsCount = assignmentsRes.count || 0;
-  const attempts = attemptsRes.data || [];
-  const doneCount = attempts.filter(a => a.status === 'submitted' || a.status === 'graded').length;
-
-  const graded = attempts.filter(a => a.total_marks > 0 && (a.status === 'submitted' || a.status === 'graded'));
-  const avg = graded.length
-    ? Math.round(graded.reduce((s, a) => s + (a.score / a.total_marks) * 100, 0) / graded.length)
-    : 0;
-
-  $('#statAvailable').textContent = availableCount;
-  $('#statAssignments').textContent = assignmentsCount;
-  $('#statDone').textContent = doneCount;
-  $('#statAvg').textContent = graded.length ? `${avg}%` : '—';
+  $('#statAvailable').textContent = examsRes.count || 0;
+  $('#statAssignments').textContent = assignmentsRes.count || 0;
+  $('#statPending').textContent = pendingRes.count || 0;
+  $('#statGraded').textContent = gradedRes.count || 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   دالة مساعدة: الطالب يشوف الامتحان؟
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── دالة مساعدة ─────────────── */
 function studentSeesItem(item) {
-  // 1) الصف
   if (item.grade !== currentProfile.grade) return false;
-
-  // 2) النوع
   if (item.type !== currentProfile.type) return false;
-
-  // 3) لو الطالب عام → خلاص
   if (currentProfile.type === 'عام') return true;
-
-  // 4) لو الطالب إعدادي → خلاص (مفيش فرع)
   if (currentProfile.grade.includes('إعدادي')) return true;
-
-  // 5) الطالب أزهر ثانوي
-  // لو الامتحان مش حاطط فرع → يشوفه
   if (!item.branch) return true;
-
-  // لازم فرعه يطابق
   return item.branch === currentProfile.branch;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   تحميل الامتحانات المتاحة (kind = 'exam')
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الامتحانات المتاحة ─────────────── */
 async function loadAvailableExams() {
   const c = document.getElementById('availableContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -119,7 +100,6 @@ async function loadAvailableExams() {
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
-  // فلترة الفرع
   const filtered = (exams || []).filter(studentSeesItem);
 
   if (!filtered.length) {
@@ -127,7 +107,6 @@ async function loadAvailableExams() {
     return;
   }
 
-  // نجيب محاولات الطالب
   const examIds = filtered.map(e => e.id);
   const { data: attempts } = await supabaseClient
     .from('attempts')
@@ -140,14 +119,9 @@ async function loadAvailableExams() {
 
   c.innerHTML = filtered.map(e => itemCard(e, attemptMap[e.id], 'exam')).join('');
   bindStartButtons();
-
-  // تحديث عدّاد
-  $('#statAvailable').textContent = filtered.length;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   تحميل الواجبات (kind = 'assignment')
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── الواجبات ─────────────── */
 async function loadAssignments() {
   const c = document.getElementById('assignmentsContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -167,7 +141,6 @@ async function loadAssignments() {
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
-  // فلترة الفرع
   const filtered = (assignments || []).filter(studentSeesItem);
 
   if (!filtered.length) {
@@ -175,7 +148,6 @@ async function loadAssignments() {
     return;
   }
 
-  // نجيب محاولات الطالب
   const ids = filtered.map(e => e.id);
   const { data: attempts } = await supabaseClient
     .from('attempts')
@@ -188,21 +160,15 @@ async function loadAssignments() {
 
   c.innerHTML = filtered.map(e => itemCard(e, attemptMap[e.id], 'assignment')).join('');
   bindStartButtons();
-
-  // تحديث عدّاد
-  $('#statAssignments').textContent = filtered.length;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   كارت (امتحان أو واجب)
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── كارت الامتحان/الواجب ─────────────── */
 function itemCard(item, attempt, kind) {
   const closesAt = new Date(item.closes_at);
   const diffMs = closesAt - new Date();
   const hoursLeft = Math.floor(diffMs / (1000 * 60 * 60));
   const daysLeft = Math.floor(hoursLeft / 24);
 
-  // وقت الإغلاق
   let closeLabel = '';
   let closeCls = '';
   if (diffMs < 0) {
@@ -218,21 +184,23 @@ function itemCard(item, attempt, kind) {
     closeLabel = `باقي ${daysLeft} يوم`;
   }
 
-  // نوع البادج
   const kindBadge = kind === 'exam'
     ? `<span class="exam-card__kind exam-card__kind--exam"><i class="fa-solid fa-file-pen"></i> امتحان</span>`
     : `<span class="exam-card__kind exam-card__kind--assignment"><i class="fa-solid fa-clipboard-check"></i> واجب</span>`;
 
-  // زرار الإجراء
   let actionBtn = '';
   if (attempt) {
     if (attempt.status === 'in_progress') {
       actionBtn = `<button class="btn btn--gold btn--sm" data-start="${item.id}">
         <i class="fa-solid fa-play"></i> إكمال
       </button>`;
+    } else if (attempt.status === 'submitted') {
+      actionBtn = `<button class="btn btn--line btn--sm" disabled>
+        <i class="fa-solid fa-marker"></i> قيد المراجعة
+      </button>`;
     } else {
       actionBtn = `<button class="btn btn--line btn--sm" disabled>
-        <i class="fa-solid fa-circle-check"></i> تم التسليم
+        <i class="fa-solid fa-circle-check"></i> تم التصحيح
       </button>`;
     }
   } else {
@@ -241,7 +209,6 @@ function itemCard(item, attempt, kind) {
     </button>`;
   }
 
-  // كلاس الكارت
   const cardCls = kind === 'assignment' ? 'exam-card exam-card--assignment' : 'exam-card';
 
   return `
@@ -273,10 +240,10 @@ function bindStartButtons() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   الامتحانات اللي خلصها
+   قسم "قيد المراجعة" (submitted)
    ═══════════════════════════════════════════════════════════════ */
-async function loadDoneExams() {
-  const c = document.getElementById('doneContainer');
+async function loadPendingAttempts() {
+  const c = document.getElementById('pendingContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
   const { data, error } = await supabaseClient
@@ -286,21 +253,83 @@ async function loadDoneExams() {
       exams:exam_id (title, total_marks, pass_marks, kind)
     `)
     .eq('student_id', currentUser.id)
-    .in('status', ['submitted', 'graded'])
+    .eq('status', 'submitted')
     .order('submitted_at', { ascending: false })
     .limit(50);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
   if (!data?.length) {
-    c.innerHTML = emptyState('fa-clock', 'لسه ما خلصتش حاجة', 'لما تخلّص امتحان أو واجب هيظهر هنا مع درجتك');
+    c.innerHTML = emptyState('fa-marker', 'مفيش محاولات قيد المراجعة', 'لما تسلّم امتحان هيظهر هنا لحد ما الأستاذ يصححه');
     return;
   }
 
-  c.innerHTML = data.map(doneCard).join('');
+  c.innerHTML = data.map(pendingAttemptCard).join('');
 }
 
-function doneCard(a) {
+function pendingAttemptCard(a) {
+  const exam = a.exams || {};
+  const isAssignment = exam.kind === 'assignment';
+
+  const kindBadge = isAssignment
+    ? `<span class="exam-card__kind exam-card__kind--assignment"><i class="fa-solid fa-clipboard-check"></i> واجب</span>`
+    : `<span class="exam-card__kind exam-card__kind--exam"><i class="fa-solid fa-file-pen"></i> امتحان</span>`;
+
+  const cardCls = isAssignment
+    ? 'exam-card exam-card--pending exam-card--assignment'
+    : 'exam-card exam-card--pending';
+
+  return `
+    <div class="${cardCls}">
+      <div class="exam-card__head">
+        <h3>${escapeHtml(exam.title || '—')}</h3>
+        ${kindBadge}
+      </div>
+      <div class="exam-card__score exam-card__score--pending">
+        <div class="exam-card__score-num">
+          <i class="fa-solid fa-marker"></i>
+        </div>
+        <div class="exam-card__score-label">
+          <i class="fa-solid fa-hourglass-half"></i>
+          قيد المراجعة — هيتم تصحيح المقالي من الأستاذ
+        </div>
+      </div>
+      <div class="exam-card__meta">
+        <span><i class="fa-solid fa-calendar-check"></i> تم التسليم: ${formatDate(a.submitted_at)}</span>
+      </div>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   قسم "تم التصحيح" (graded)
+   ═══════════════════════════════════════════════════════════════ */
+async function loadGradedAttempts() {
+  const c = document.getElementById('gradedContainer');
+  c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
+
+  const { data, error } = await supabaseClient
+    .from('attempts')
+    .select(`
+      id, score, total_marks, status, submitted_at, graded_at,
+      exams:exam_id (title, total_marks, pass_marks, kind)
+    `)
+    .eq('student_id', currentUser.id)
+    .eq('status', 'graded')
+    .order('graded_at', { ascending: false })
+    .limit(50);
+
+  if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
+
+  if (!data?.length) {
+    c.innerHTML = emptyState('fa-clock', 'لسه ما اتصححتش محاولات', 'لما الأستاذ يصحح، النتيجة هتظهر هنا');
+    return;
+  }
+
+  c.innerHTML = data.map(gradedAttemptCard).join('');
+}
+
+function gradedAttemptCard(a) {
   const exam = a.exams || {};
   const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
   const isAssignment = exam.kind === 'assignment';
@@ -338,15 +367,13 @@ function doneCard(a) {
         </div>
       </div>
       <div class="exam-card__meta">
-        <span><i class="fa-solid fa-calendar-check"></i> ${formatDate(a.submitted_at)}</span>
+        <span><i class="fa-solid fa-calendar-check"></i> تم التصحيح: ${formatDate(a.graded_at || a.submitted_at)}</span>
       </div>
     </div>
   `;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   أدوات
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── أدوات ─────────────── */
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -376,9 +403,7 @@ function emptyState(icon, title, msg) {
   `;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   التهيئة
-   ═══════════════════════════════════════════════════════════════ */
+/* ─────────────── التهيئة ─────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
@@ -390,7 +415,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderWelcome();
 
-  /* ─── زرار الخروج ─── */
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     const ok = await UI.confirm({
       type: 'warn',
@@ -404,7 +428,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = 'login.html';
   });
 
-  /* ─── bottom bar ─── */
   document.querySelectorAll('.bottom-bar__btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const scrollId = btn.dataset.scroll;
@@ -420,9 +443,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  /* ─── تحميل البيانات ─── */
+  // تحميل كل الأقسام
   loadStats();
   loadAvailableExams();
   loadAssignments();
-  loadDoneExams();
+  loadPendingAttempts();
+  loadGradedAttempts();
 });

@@ -24,11 +24,13 @@
   <div class="bg-vignette"></div>
 </div>
 
+<!-- شاشة التحميل -->
 <div class="exam-loading" id="examLoading">
   <div class="loader"><span></span><span></span><span></span></div>
   <p>جارٍ تحميل الامتحان...</p>
 </div>
 
+<!-- شاشة البدء -->
 <div class="exam-intro" id="examIntro" hidden>
   <div class="exam-intro__box">
     <div class="exam-intro__icon"><i class="fa-solid fa-file-pen"></i></div>
@@ -55,6 +57,7 @@
   </div>
 </div>
 
+<!-- شاشة الامتحان -->
 <div class="exam-stage" id="examStage" hidden>
 
   <header class="exam-header">
@@ -88,16 +91,17 @@
 
 </div>
 
+<!-- شاشة النتيجة -->
 <div class="exam-result" id="examResult" hidden>
   <div class="exam-result__box">
     <div class="exam-result__icon">
-      <i class="fa-solid fa-circle-check"></i>
+      <i class="fa-solid fa-clock"></i>
     </div>
-    <h1>تم تسليم الامتحان 🎉</h1>
-    <p>هيتم تصحيح الإجابات من قِبل الأستاذ</p>
+    <h1>تم تسليم إجاباتك ⏳</h1>
+    <p>حسابك الآن <strong style="color:var(--gold-2)">قيد المراجعة</strong> — هيتم التصحيح من قِبل الأستاذ</p>
     <div class="exam-result__stat">
       <b id="resultScore">0</b>
-      <span>إجابة صحيحة</span>
+      <span>درجة MCQ (مؤقت)</span>
     </div>
     <a href="index.html" class="btn btn--gold btn--lg">
       <i class="fa-solid fa-house"></i>
@@ -106,6 +110,7 @@
   </div>
 </div>
 
+<!-- تحذير الغش -->
 <div class="cheat-warning" id="cheatWarning" hidden>
   <div class="cheat-warning__box">
     <i class="fa-solid fa-triangle-exclamation"></i>

@@ -412,24 +412,42 @@ async function endExam(reason = 'submit') {
 
   await saveAllAnswers();
 
-  let score = 0;
+  // ═══ نحسب درجات MCQ تلقائي (المقالي هيتصحح بعدين) ═══
+  let autoScore = 0;
   for (const q of questions) {
     const ans = answers[q.id];
     if (!ans) continue;
 
     if (q.question_type === 'mcq' && ans.choiceId) {
       const choice = q.choices.find(c => c.id === ans.choiceId);
-      if (choice?.is_correct) score += q.marks || 0;
+      if (choice?.is_correct) {
+        autoScore += q.marks || 0;
+        // نحفظ درجة الـ MCQ في الإجابة
+        await supabaseClient
+          .from('answers')
+          .update({ marks_awarded: q.marks || 0 })
+          .eq('attempt_id', attempt.id)
+          .eq('question_id', q.id);
+      } else {
+        // إجابة غلط → 0
+        await supabaseClient
+          .from('answers')
+          .update({ marks_awarded: 0 })
+          .eq('attempt_id', attempt.id)
+          .eq('question_id', q.id);
+      }
     }
+    // المقالي: نسيبها فارغة لحد ما المدرس يصحح
   }
 
+  // ═══ نحفظ المحاولة (submitted — قيد المراجعة) ═══
   try {
     await supabaseClient
       .from('attempts')
       .update({
         status: 'submitted',
         submitted_at: new Date().toISOString(),
-        score
+        score: autoScore
       })
       .eq('id', attempt.id);
   } catch (err) {
@@ -444,7 +462,7 @@ async function endExam(reason = 'submit') {
   document.getElementById('examResult').hidden = false;
   document.body.classList.remove('exam-locked');
 
-  $('#resultScore').textContent = score;
+  $('#resultScore').textContent = autoScore;
 
   if (reason === 'timeout') {
     Toast.warn('انتهى الوقت', 'تم تسليم إجاباتك تلقائياً');
