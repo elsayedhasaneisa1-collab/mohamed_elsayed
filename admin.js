@@ -593,7 +593,6 @@ function gradingCard(a) {
 }
 
 function bindGradingActions() {
-  // الضغط على الكارت
   $$('#gradingContainer [data-attempt-id]').forEach(card => {
     card.addEventListener('click', (e) => {
       if (e.target.closest('button')) return;
@@ -602,7 +601,6 @@ function bindGradingActions() {
     });
   });
 
-  // زرار التصحيح
   $$('#gradingContainer [data-action="grade"]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -625,7 +623,6 @@ async function openGradingModal(attemptId) {
   body.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
   try {
-    // 1) نجيب المحاولة
     const { data: attempt, error: attErr } = await supabaseClient
       .from('attempts')
       .select(`
@@ -643,13 +640,12 @@ async function openGradingModal(attemptId) {
 
     currentGradingAttempt = attempt;
 
-    // 2) نجيب الأسئلة + الإجابات
     const { data: answers, error: ansErr } = await supabaseClient
       .from('answers')
       .select(`
         id, selected_choice_id, essay_text, marks_awarded, teacher_feedback,
         questions:question_id (id, question_text, question_type, marks, order_index),
-        choices:selected_choice_id (choice_text, is_correct)
+        selected_choice:selected_choice_id (id, choice_text, is_correct)
       `)
       .eq('attempt_id', attemptId);
 
@@ -658,7 +654,6 @@ async function openGradingModal(attemptId) {
       return;
     }
 
-    // 3) نجيب كل الاختيارات لكل سؤال MCQ
     const mcqQuestionIds = (answers || [])
       .filter(a => a.questions?.question_type === 'mcq')
       .map(a => a.questions.id);
@@ -673,33 +668,34 @@ async function openGradingModal(attemptId) {
       allChoices = choicesData || [];
     }
 
-    // 4) ترتيب
     const sortedAnswers = (answers || []).sort((a, b) => {
       const ai = a.questions?.order_index ?? 0;
       const bi = b.questions?.order_index ?? 0;
       return ai - bi;
     });
 
-    // 5) نحفظ الإجابات
     gradingAnswers = {};
     sortedAnswers.forEach(a => {
+      const isMcq = a.questions?.question_type === 'mcq';
+      const choicesForQ = allChoices.filter(c => c.question_id === a.questions?.id);
+
       gradingAnswers[a.id] = {
-        marks_awarded: a.marks_awarded ?? (a.questions?.question_type === 'mcq' && a.choices?.is_correct ? a.questions.marks : 0),
+        marks_awarded: a.marks_awarded ?? (isMcq && a.selected_choice?.is_correct ? a.questions.marks : 0),
         teacher_feedback: a.teacher_feedback || '',
         question: a.questions,
         answer: a,
-        choices: allChoices.filter(c => c.question_id === a.questions?.id)
+        choices: choicesForQ,
+        selectedChoice: a.selected_choice || null
       };
     });
 
-    // 6) نرندر
     body.innerHTML = renderGradingModal(attempt, sortedAnswers, allChoices);
 
     bindGradingModalEvents();
 
   } catch (err) {
-    console.error(err);
-    body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تاني');
+    console.error('Grading error:', err);
+    body.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', err.message || 'حاول تاني');
   }
 }
 
@@ -715,9 +711,7 @@ function closeGradingModal() {
 function renderGradingModal(attempt, answers, allChoices) {
   const student = attempt.profiles || {};
   const exam = attempt.exams || {};
-  const isGraded = attempt.status === 'graded';
 
-  // معلومات رأس
   const hero = `
     <div class="grading-hero">
       <div class="grading-hero__info">
@@ -731,7 +725,6 @@ function renderGradingModal(attempt, answers, allChoices) {
     </div>
   `;
 
-  // قائمة الأسئلة
   let listHtml = '<div class="grading-list">';
 
   answers.forEach((ans, idx) => {
@@ -739,31 +732,29 @@ function renderGradingModal(attempt, answers, allChoices) {
     const isMcq = q.question_type === 'mcq';
     const maxMarks = q.marks || 0;
 
-    // نوع
     const typeBadge = isMcq
       ? '<span class="grading-item__type grading-item__type--mcq"><i class="fa-solid fa-list-ul"></i> اختيار</span>'
       : '<span class="grading-item__type grading-item__type--essay"><i class="fa-solid fa-pen-fancy"></i> مقالي</span>';
 
-    // نص السؤال
     const questionHtml = `
       <div class="grading-item__question">
         ${escapeHtml(q.question_text || '')}
       </div>
     `;
 
-    // الإجابة
     let answerHtml = '';
+
     if (isMcq) {
-      // MCQ: نعرض الاختيارات
-      const correctChoice = ans.choices?.find(c => c.is_correct);
-      const selectedChoice = ans.answer?.choices;
+      const selectedChoice = ans.selected_choice;
+      const choicesForQ = ans.choices || [];
+      const correctChoice = choicesForQ.find(c => c.is_correct);
       const isCorrect = selectedChoice?.is_correct === true;
-      const isEmpty = !ans.answer?.selected_choice_id;
+      const isEmpty = !ans.selected_choice_id;
 
       answerHtml = `
         <div class="grading-item__answer">
           <div class="grading-item__answer-label">
-            <i class="fa-solid fa-check-circle"></i>
+            <i class="fa-solid fa-check-circle" style="color:var(--ok)"></i>
             الإجابة الصحيحة: <strong style="color:var(--ok)">${escapeHtml(correctChoice?.choice_text || '—')}</strong>
           </div>
           <div class="grading-item__answer-label" style="margin-top:10px">
@@ -776,8 +767,8 @@ function renderGradingModal(attempt, answers, allChoices) {
                   : '<strong style="color:var(--err)">خاطئة ❌</strong>')}
           </div>
           <div class="mcq-choices-review">
-            ${(ans.choices || []).map(c => {
-              const isSelected = ans.answer?.selected_choice_id === c.id;
+            ${(choicesForQ || []).map(c => {
+              const isSelected = ans.selected_choice_id === c.id;
               const isCorrectChoice = c.is_correct;
               let cls = 'mcq-choice-review';
               let icon = '<i class="fa-solid fa-circle" style="opacity:.2"></i>';
@@ -800,7 +791,7 @@ function renderGradingModal(attempt, answers, allChoices) {
               return `
                 <div class="${cls}">
                   <div class="${iconCls}">${icon}</div>
-                  <div class="mcq-choice-review__text">${escapeHtml(c.choice_text)}</div>
+                  <div class="mcq-choice-review__text">${escapeHtml(c.choice_text || '')}</div>
                 </div>
               `;
             }).join('')}
@@ -808,8 +799,7 @@ function renderGradingModal(attempt, answers, allChoices) {
         </div>
       `;
     } else {
-      // مقالي: نعرض إجابة الطالب
-      const essayText = ans.answer?.essay_text || '';
+      const essayText = ans.essay_text || '';
       const isEmpty = !essayText.trim();
       answerHtml = `
         <div class="grading-item__answer">
@@ -824,11 +814,9 @@ function renderGradingModal(attempt, answers, allChoices) {
       `;
     }
 
-    // حقل الدرجة + التعليق (للمقالي بس، MCQ تلقائي)
     let marksHtml = '';
     if (isMcq) {
-      // MCQ: نعرض الدرجة بس
-      const currentMarks = ans.marks_awarded ?? (ans.answer?.choices?.is_correct ? maxMarks : 0);
+      const currentMarks = ans.marks_awarded ?? (ans.selected_choice?.is_correct ? maxMarks : 0);
       marksHtml = `
         <div class="grading-empty-note">
           <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -838,7 +826,6 @@ function renderGradingModal(attempt, answers, allChoices) {
         </div>
       `;
     } else {
-      // مقالي: نعرض حقل الدرجة + التعليق
       const currentMarks = ans.marks_awarded ?? 0;
       marksHtml = `
         <div class="grading-marks-row">
@@ -846,7 +833,7 @@ function renderGradingModal(attempt, answers, allChoices) {
             <label><i class="fa-solid fa-star"></i> الدرجة (من ${maxMarks})</label>
             <input type="number"
                    class="grading-input"
-                   data-answer-id="${ans.answer.id}"
+                   data-answer-id="${ans.id}"
                    data-max="${maxMarks}"
                    value="${currentMarks}"
                    min="0"
@@ -857,23 +844,22 @@ function renderGradingModal(attempt, answers, allChoices) {
           <div class="grading-field">
             <label><i class="fa-solid fa-comment"></i> تعليق (اختياري)</label>
             <textarea class="grading-textarea"
-                      data-answer-id="${ans.answer.id}"
+                      data-answer-id="${ans.id}"
                       placeholder="ملاحظات للطالب...">${escapeHtml(ans.teacher_feedback || '')}</textarea>
           </div>
         </div>
       `;
     }
 
-    // item class
     let itemCls = 'grading-item';
     if (isMcq) {
       itemCls += ' grading-item--mcq';
-      if (ans.answer?.choices?.is_correct) itemCls += ' is-correct';
-      else if (ans.answer?.selected_choice_id) itemCls += ' is-wrong';
+      if (ans.selected_choice?.is_correct) itemCls += ' is-correct';
+      else if (ans.selected_choice_id) itemCls += ' is-wrong';
     }
 
     listHtml += `
-      <div class="${itemCls}" data-answer-id="${ans.answer.id}">
+      <div class="${itemCls}" data-answer-id="${ans.id}">
         <div class="grading-item__head">
           <div class="grading-item__num">${idx + 1}</div>
           ${typeBadge}
@@ -888,15 +874,14 @@ function renderGradingModal(attempt, answers, allChoices) {
 
   listHtml += '</div>';
 
-  // ملخص
-  const summary = renderGradingSummary(attempt, answers);
+  const summary = renderGradingSummary(attempt);
 
   return hero + listHtml + summary;
 }
 
-function renderGradingSummary(attempt, answers) {
-  let autoScore = 0;     // MCQ
-  let manualScore = 0;   // مقالي
+function renderGradingSummary(attempt) {
+  let autoScore = 0;
+  let manualScore = 0;
   let essayCount = 0;
 
   Object.values(gradingAnswers).forEach(ans => {
@@ -904,7 +889,7 @@ function renderGradingSummary(attempt, answers) {
     if (!q) return;
 
     if (q.question_type === 'mcq') {
-      if (ans.answer?.choices?.is_correct) autoScore += q.marks || 0;
+      if (ans.selectedChoice?.is_correct) autoScore += q.marks || 0;
     } else {
       essayCount++;
       manualScore += Number(ans.marks_awarded) || 0;
@@ -935,8 +920,8 @@ function renderGradingSummary(attempt, answers) {
 
 function bindGradingModalEvents() {
   const body = document.getElementById('gradingBody');
+  if (!body) return;
 
-  // حقول الدرجة (المقالي)
   $$('.grading-input', body).forEach(input => {
     input.addEventListener('input', () => {
       const answerId = input.dataset.answerId;
@@ -952,7 +937,6 @@ function bindGradingModalEvents() {
     });
   });
 
-  // حقول التعليق
   $$('.grading-textarea', body).forEach(ta => {
     ta.addEventListener('input', () => {
       const answerId = ta.dataset.answerId;
@@ -974,7 +958,7 @@ function updateGradingSummary() {
     if (!q) return;
 
     if (q.question_type === 'mcq') {
-      if (ans.answer?.choices?.is_correct) autoScore += q.marks || 0;
+      if (ans.selectedChoice?.is_correct) autoScore += q.marks || 0;
     } else {
       manualScore += Number(ans.marks_awarded) || 0;
     }
@@ -1009,14 +993,11 @@ async function saveGrading() {
 
     const attemptId = currentGradingAttempt.id;
 
-    // 1) نحدّث كل إجابة
     for (const answerId in gradingAnswers) {
       const ans = gradingAnswers[answerId];
       const q = ans.question;
       if (!q) continue;
 
-      // MCQ → تلقائي (بنسيبه زي ما هو)
-      // مقالي → نحدّث الدرجة والتعليق
       if (q.question_type === 'essay') {
         const { error } = await supabaseClient
           .from('answers')
@@ -1029,19 +1010,17 @@ async function saveGrading() {
       }
     }
 
-    // 2) نحسب المجموع الكلي
     let totalScore = 0;
     Object.values(gradingAnswers).forEach(ans => {
       const q = ans.question;
       if (!q) return;
       if (q.question_type === 'mcq') {
-        if (ans.answer?.choices?.is_correct) totalScore += q.marks || 0;
+        if (ans.selectedChoice?.is_correct) totalScore += q.marks || 0;
       } else {
         totalScore += Number(ans.marks_awarded) || 0;
       }
     });
 
-    // 3) نحدّث المحاولة
     const { error: attemptErr } = await supabaseClient
       .from('attempts')
       .update({
@@ -1166,8 +1145,9 @@ function bindAttemptClick() {
     });
   });
 }
+
 /* ═══════════════════════════════════════════════════════════════
-   5. PDF
+   6. PDF
    ═══════════════════════════════════════════════════════════════ */
 async function loadPdfList() {
   const c = document.getElementById('pdfContainer');
@@ -1844,6 +1824,7 @@ async function deleteExported() {
   loadPdfList();
   loadStats();
 }
+
 /* ═══════════════════════════════════════════════════════════════
    Modal إنشاء امتحان
    ═══════════════════════════════════════════════════════════════ */
