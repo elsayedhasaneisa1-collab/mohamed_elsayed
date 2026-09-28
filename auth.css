@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════
-   منصة الأستاذ محمد عيسى — تنسيق صفحات المصادقة
-   الهوية: ذهبي #e6b800 / أسود #0a0a0a — RTL — Mobile-first
-   ═══════════════════════════════════════════════════════════════ */
-
 :root{
   --gold:#e6b800;
   --gold-2:#ffe27a;
@@ -336,51 +331,6 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
 .field__toggle.is-open i{transform:rotate(180deg)}
 .field__toggle i{transition:transform .35s var(--ease)}
 
-/* تأثير "الرقم مأخوذ" */
-.field.is-taken .field__input{
-  border-color:var(--err);
-  background:rgba(255,92,92,.08);
-  animation:fieldShake .5s var(--ease),errPulse 2s ease-in-out .5s infinite;
-  box-shadow:0 0 0 3px rgba(255,92,92,.18);
-}
-.field.is-taken::before{
-  content:"";position:absolute;
-  inset:-3px;border-radius:16px;
-  border:1.5px solid rgba(255,92,92,.6);
-  animation:errRingPulse 1.8s ease-in-out infinite;
-  pointer-events:none;z-index:0;
-}
-.field.is-taken .field__label{color:var(--err);animation:errLabelPulse 1.8s ease-in-out infinite;}
-.field.is-taken .field__label i{color:var(--err);}
-.field.is-taken::after{
-  content:"\f00d";
-  font-family:"Font Awesome 6 Free";font-weight:900;
-  position:absolute;inset-inline-end:14px;top:38px;
-  color:var(--err);font-size:.9rem;
-  animation:popIn .3s var(--ease),errIconPulse 1.5s ease-in-out .3s infinite;
-  z-index:1;
-}
-.field.is-taken:has(.field__toggle)::after{inset-inline-end:52px;}
-@keyframes errPulse{
-  0%,100%{box-shadow:0 0 0 3px rgba(255,92,92,.18);border-color:var(--err);}
-  50%{box-shadow:0 0 0 5px rgba(255,92,92,.28);border-color:#ff7a7a;}
-}
-@keyframes errRingPulse{
-  0%,100%{opacity:.5;transform:scale(1);}
-  50%{opacity:.15;transform:scale(1.02);}
-}
-@keyframes errLabelPulse{0%,100%{opacity:1;}50%{opacity:.7;}}
-@keyframes errIconPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
-@keyframes fieldShake{
-  0%,100%{transform:translateX(0);}
-  15%{transform:translateX(-8px);}
-  30%{transform:translateX(8px);}
-  45%{transform:translateX(-6px);}
-  60%{transform:translateX(6px);}
-  75%{transform:translateX(-3px);}
-  90%{transform:translateX(3px);}
-}
-
 /* ─────────────── بطاقات الراديو ─────────────── */
 .radio-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .radio-card{position:relative}
@@ -487,7 +437,7 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Custom Select (بدل <select>)
+   Custom Select — تصميم محسّن مع Grid + Cards
    ═══════════════════════════════════════════════════════════════ */
 
 .custom-select-btn{
@@ -505,9 +455,7 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   transition:.28s var(--ease);
   position:relative;
 }
-.custom-select-btn:hover{
-  border-color:var(--line);
-}
+.custom-select-btn:hover{border-color:var(--line);}
 .custom-select-btn:focus{
   outline:0;
   border-color:var(--gold);
@@ -515,76 +463,99 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   box-shadow:0 0 0 3px rgba(230,184,0,.13);
 }
 .custom-select-btn > i:first-child{
-  color:var(--muted);
-  font-size:.9rem;
+  color:var(--muted);font-size:.9rem;
   transition:color .28s;
 }
 .custom-select-btn:focus > i:first-child,
-.custom-select-btn.is-open > i:first-child{
-  color:var(--gold-2);
-}
+.custom-select-btn.is-open > i:first-child{color:var(--gold-2);}
 .custom-select-btn span{
-  flex:1;
-  color:var(--text-2);
+  flex:1;color:var(--text-2);
   transition:color .28s;
 }
 .custom-select-btn span.is-selected{
-  color:var(--text);
-  font-weight:700;
+  color:var(--text);font-weight:700;
 }
 .custom-select-btn__arrow{
-  color:var(--gold-3);
-  font-size:.8rem;
+  color:var(--gold-3);font-size:.8rem;
   transition:transform .35s var(--ease);
 }
-.custom-select-btn.is-open .custom-select-btn__arrow{
-  transform:rotate(180deg);
-}
+.custom-select-btn.is-open .custom-select-btn__arrow{transform:rotate(180deg);}
 
+/* القائمة — شكل جديد: Grid 2 أعمدة */
 .custom-select-menu{
   position:absolute;
   top:calc(100% + 8px);
   inset-inline:0;
-  z-index:100;
-  padding:8px;
-  border-radius:16px;
-  background:linear-gradient(165deg,#1a1a1a,#0a0a0a 75%);
+  z-index:9999;
+  padding:12px;
+  border-radius:18px;
+  background:#0f0f0f;
   border:1px solid var(--line);
   box-shadow:
-    0 20px 50px -20px #000,
-    0 0 0 1px rgba(230,184,0,.08),
-    0 0 60px -30px rgba(230,184,0,.4);
-  max-height:340px;
-  overflow-y:auto;
-  animation:customSelectOpen .25s var(--ease);
+    0 24px 60px -20px #000,
+    0 0 0 1px rgba(230,184,0,.12),
+    0 0 80px -30px rgba(230,184,0,.5);
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  animation:customSelectOpen .3s var(--ease);
+  isolation:isolate;
 }
 @keyframes customSelectOpen{
-  from{opacity:0;transform:translateY(-8px) scale(.98)}
+  from{opacity:0;transform:translateY(-10px) scale(.97)}
   to{opacity:1;transform:none}
 }
-.custom-select-menu[hidden]{display:none}
+.custom-select-menu[hidden]{display:none;}
 
 .custom-select-menu__item{
-  display:flex;align-items:center;gap:12px;
-  padding:13px 14px;
-  border-radius:11px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:14px 10px;
+  border-radius:14px;
+  background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+  border:1px solid var(--line-2);
   color:var(--text-2);
-  font-size:.92rem;
+  font-size:.86rem;
+  font-weight:600;
   cursor:pointer;
-  transition:.22s var(--ease);
+  transition:.28s var(--ease);
   position:relative;
+  text-align:center;
   user-select:none;
+  min-height:76px;
 }
 .custom-select-menu__item:hover{
-  background:rgba(230,184,0,.08);
+  background:linear-gradient(160deg,rgba(230,184,0,.12),rgba(230,184,0,.04));
+  border-color:var(--gold);
   color:var(--gold-2);
+  transform:translateY(-3px);
+  box-shadow:0 10px 24px -12px rgba(230,184,0,.7);
 }
 .custom-select-menu__item.is-selected{
-  background:linear-gradient(135deg,rgba(230,184,0,.18),rgba(230,184,0,.06));
+  background:linear-gradient(160deg,rgba(230,184,0,.22),rgba(230,184,0,.08));
+  border-color:var(--gold);
   color:var(--gold-2);
-  font-weight:700;
+  box-shadow:
+    inset 0 0 20px rgba(230,184,0,.15),
+    0 8px 22px -12px rgba(230,184,0,.8);
+}
+.custom-select-menu__item.is-selected::after{
+  content:"\f00c";
+  font-family:"Font Awesome 6 Free";font-weight:900;
+  position:absolute;
+  top:6px;inset-inline-end:6px;
+  width:18px;height:18px;border-radius:50%;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--gold-2),var(--gold-deep));
+  color:#14110a;
+  font-size:.6rem;
+  animation:popIn .3s var(--ease);
 }
 
+/* أيقونة الدايرة */
 .custom-select-menu__radio{
   flex-shrink:0;
   width:22px;height:22px;border-radius:50%;
@@ -599,6 +570,9 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   transform:scale(0);
   transition:.25s var(--ease);
 }
+.custom-select-menu__item:hover .custom-select-menu__radio{
+  border-color:var(--gold-2);
+}
 .custom-select-menu__item.is-selected .custom-select-menu__radio{
   border-color:var(--gold);
   background:rgba(230,184,0,.15);
@@ -606,8 +580,12 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
 .custom-select-menu__item.is-selected .custom-select-menu__radio::after{
   transform:scale(1);
 }
-.custom-select-menu__item:hover .custom-select-menu__radio{
-  border-color:var(--gold-2);
+
+/* نص العنصر */
+.custom-select-menu__item > span:last-child{
+  display:block;
+  line-height:1.3;
+  font-family:'Cairo',sans-serif;
 }
 
 /* ─────────────── ملاحظة ─────────────── */
@@ -797,8 +775,14 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   .login-extra{font-size:.82rem}
 
   .custom-select-btn{padding:11px 13px;font-size:.9rem}
-  .custom-select-menu__item{padding:11px 12px;font-size:.88rem}
-  .custom-select-menu__radio{width:20px;height:20px}
+  .custom-select-menu{padding:10px;gap:6px;}
+  .custom-select-menu__item{padding:12px 8px;font-size:.78rem;min-height:68px;}
+  .custom-select-menu__radio{width:18px;height:18px;}
+}
+
+@media(max-width:360px){
+  .custom-select-menu{grid-template-columns:1fr;}
+  .custom-select-menu__item{flex-direction:row;justify-content:flex-start;gap:10px;min-height:auto;}
 }
 
 /* ─────────────── PWA standalone ─────────────── */
