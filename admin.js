@@ -947,7 +947,20 @@ async function exportSinglePdf(attempt) {
     updateProgress(20, 'جارٍ التحويل لصورة...');
 
     // نحول لصورة
-    const canvas = await html2canvas(template.firstElementChild, {
+    // نحول لصورة
+const canvasPromise = html2canvas(template.firstElementChild, {
+  scale: 1.5,
+  backgroundColor: '#ffffff',
+  useCORS: true,
+  logging: false
+});
+
+// timeout 30 ثانية
+const timeoutPromise = new Promise((_, reject) =>
+  setTimeout(() => reject(new Error('التوليد خد وقت طويل')), 30000)
+);
+
+const canvas = await Promise.race([canvasPromise, timeoutPromise]);
       scale: 2,
       backgroundColor: '#ffffff',
       useCORS: true,
