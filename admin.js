@@ -1989,7 +1989,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   $$('input[name="grade"]').forEach(i => i.addEventListener('change', updateBranchesVisibility));
-  $$('input[name="type"]')..forEach(i => i.addEventListener('change', updateBranchesVisibility));
+  $$('input[name="type"]').forEach(i => i.addEventListener('change', updateBranchesVisibility));
 
   document.getElementById('addQuestionBtn')?.addEventListener('click', addQuestion);
   document.getElementById('saveDraftBtn')?.addEventListener('click', () => saveExam('draft'));
