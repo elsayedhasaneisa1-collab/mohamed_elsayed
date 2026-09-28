@@ -347,15 +347,19 @@
 
       <!-- الغلاف -->
       <div class="course-cover-upload">
-        <input type="file" id="courseCoverInput" accept="image/*" hidden>
         <div class="course-cover-preview" id="courseCoverPreview">
           <i class="fa-solid fa-image"></i>
-          <p>اضغط لرفع صورة الغلاف</p>
+          <p>هتلاقي معاينة الصورة هنا</p>
         </div>
-        <button type="button" class="btn btn--line btn--sm" id="courseCoverBtn">
-          <i class="fa-solid fa-upload"></i>
-          رفع غلاف
-        </button>
+
+        <div class="q-field">
+          <label><i class="fa-solid fa-link"></i> لينك صورة الغلاف</label>
+          <input type="url" id="courseCoverUrl" class="q-input" placeholder="https://example.com/cover.jpg" dir="ltr">
+          <small class="field__hint">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>حط لينك مباشر لصورة (jpg / png / webp)</span>
+          </small>
+        </div>
       </div>
 
       <!-- البيانات الأساسية -->
@@ -373,7 +377,7 @@
         </div>
       </div>
 
-      <!-- الصف والنوع -->
+      <!-- الصف -->
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-layer-group"></i> الصف <span class="req">*</span></div>
         <div class="checkbox-grid" id="courseGradesGrid">
@@ -386,6 +390,7 @@
         </div>
       </div>
 
+      <!-- النوع -->
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-school"></i> النوع <span class="req">*</span></div>
         <div class="checkbox-grid checkbox-grid--2">
@@ -394,6 +399,7 @@
         </div>
       </div>
 
+      <!-- الفرع -->
       <div class="form-section" id="courseBranchesSection" hidden>
         <div class="form-section__t"><i class="fa-solid fa-code-branch"></i> الفرع</div>
         <div class="checkbox-grid checkbox-grid--2">
@@ -498,7 +504,6 @@
 
     <div class="modal__body">
 
-      <!-- نوع العنصر -->
       <div class="exam-kind-tabs" style="grid-template-columns:1fr 1fr;">
         <label class="exam-kind-tab is-active" data-itemtype="youtube">
           <input type="radio" name="itemType" value="youtube" checked>

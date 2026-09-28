@@ -23,7 +23,6 @@ let currentDetailsAttempt = null;
 let currentGradingAttempt = null;
 let gradingAnswers = {};
 let currentCourseId = null;
-let currentCoverFile = null;
 let currentFolderId = null;
 let currentItemId = null;
 
@@ -217,7 +216,7 @@ function bindPendingActions() {
             console.warn('RPC failed, deleting from profiles only:', error);
             const { error: pErr } = await supabaseClient.from('profiles').delete().eq('id', id);
             if (pErr) throw pErr;
-            Toast.warn('تم الحذف', 'الحساب محذوف. امسحه من Authentication → Users لو حبيت.');
+            Toast.warn('تم الحذف', 'الحساب محذوف.');
           } else {
             Toast.warn('تم الرفض', `تم حذف حساب ${name} نهائياً`);
           }
@@ -522,7 +521,6 @@ function openCourseModal(courseId = null) {
   if (!modal) return;
 
   currentCourseId = courseId;
-  currentCoverFile = null;
 
   document.getElementById('courseModalTitle').innerHTML = courseId
     ? '<i class="fa-solid fa-pen"></i> تعديل كورس'
@@ -544,19 +542,19 @@ function closeCourseModal() {
   modal.hidden = true;
   document.body.style.overflow = '';
   currentCourseId = null;
-  currentCoverFile = null;
 }
 
 function resetCourseForm() {
   document.getElementById('courseTitle').value = '';
   document.getElementById('courseDesc').value = '';
+  document.getElementById('courseCoverUrl').value = '';
   $$('input[name="courseGrade"]').forEach(i => i.checked = false);
   $$('input[name="courseType"]').forEach(i => i.checked = false);
   $$('input[name="courseBranch"]').forEach(i => i.checked = false);
   document.getElementById('courseBranchesSection').hidden = true;
 
   const preview = document.getElementById('courseCoverPreview');
-  preview.innerHTML = '<i class="fa-solid fa-image"></i><p>اضغط لرفع صورة الغلاف</p>';
+  preview.innerHTML = '<i class="fa-solid fa-image"></i><p>هتلاقي معاينة الصورة هنا</p>';
   preview.classList.remove('has-image');
 }
 
@@ -576,6 +574,7 @@ async function loadCourseForEdit(courseId) {
 
     document.getElementById('courseTitle').value = course.title || '';
     document.getElementById('courseDesc').value = course.description || '';
+    document.getElementById('courseCoverUrl').value = course.cover_url || '';
 
     $$('input[name="courseGrade"]').forEach(i => i.checked = (i.value === course.grade));
     $$('input[name="courseType"]').forEach(i => i.checked = (i.value === course.type));
@@ -583,9 +582,10 @@ async function loadCourseForEdit(courseId) {
 
     updateCourseBranchesVisibility();
 
+    // معاينة الغلاف
     if (course.cover_url) {
       const preview = document.getElementById('courseCoverPreview');
-      preview.innerHTML = `<img src="${escapeHtml(course.cover_url)}" alt="Cover">`;
+      preview.innerHTML = `<img src="${escapeHtml(course.cover_url)}" alt="Cover" onerror="this.parentElement.innerHTML='<i class=\\'fa-solid fa-triangle-exclamation\\'></i><p>الصورة مش موجودة</p>';this.parentElement.classList.remove('has-image');">`;
       preview.classList.add('has-image');
     }
 
@@ -610,30 +610,11 @@ function updateCourseBranchesVisibility() {
   }
 }
 
-async function uploadCover(file) {
-  const ext = file.name.split('.').pop().toLowerCase();
-  const fileName = `cover_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-  const { data, error } = await supabaseClient.storage
-    .from('course-covers')
-    .upload(fileName, file, {
-      cacheControl: '3600',
-      upsert: false
-    });
-
-  if (error) throw error;
-
-  const { data: urlData } = supabaseClient.storage
-    .from('course-covers')
-    .getPublicUrl(fileName);
-
-  return urlData.publicUrl;
-}
-
 async function saveCourse() {
   try {
     const title = document.getElementById('courseTitle').value.trim();
     const description = document.getElementById('courseDesc').value.trim();
+    const coverUrl = document.getElementById('courseCoverUrl').value.trim();
     const grades = $$('input[name="courseGrade"]:checked').map(i => i.value);
     const types = $$('input[name="courseType"]:checked').map(i => i.value);
     const branches = $$('input[name="courseBranch"]:checked').map(i => i.value);
@@ -654,23 +635,15 @@ async function saveCourse() {
       return;
     }
 
-    // نرفع الغلاف الأول لو موجود
-    let coverUrl = null;
-    if (currentCoverFile) {
-      Toast.info('جارٍ رفع الغلاف...', 'من فضلك استنى');
-      coverUrl = await uploadCover(currentCoverFile);
-    }
-
     const payload = {
       title,
       description: description || null,
       grade: grades[0],
       type: types[0],
       branch: branches[0] || null,
+      cover_url: coverUrl || null,
       created_by: currentUser.id
     };
-
-    if (coverUrl) payload.cover_url = coverUrl;
 
     if (currentCourseId) {
       const { error } = await supabaseClient
@@ -890,7 +863,6 @@ async function openFoldersModal(courseId) {
   body.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
   try {
-    // نجيب بيانات الكورس
     const { data: course } = await supabaseClient
       .from('courses')
       .select('id, title')
@@ -902,7 +874,6 @@ async function openFoldersModal(courseId) {
         `<i class="fa-solid fa-folder-tree"></i> فولدرات: ${escapeHtml(course.title)}`;
     }
 
-    // نجيب الفولدرات + العناصر
     await loadFolders(courseId);
 
   } catch (err) {
@@ -943,7 +914,6 @@ async function loadFolders(courseId) {
       return;
     }
 
-    // نجيب كل العناصر
     const folderIds = folders.map(f => f.id);
     const { data: items } = await supabaseClient
       .from('folder_items')
@@ -1091,7 +1061,6 @@ function openFolderModal(folderId = null) {
   document.getElementById('folderDesc').value = '';
 
   if (folderId) {
-    // نجيب بيانات الفولدر
     supabaseClient
       .from('folders')
       .select('*')
@@ -1169,7 +1138,6 @@ function openItemModal(itemId = null, folderId = null) {
   document.getElementById('itemModalTitle').textContent =
     itemId ? 'تعديل عنصر' : 'عنصر جديد';
 
-  // reset
   document.getElementById('itemTitle').value = '';
   document.getElementById('itemYoutubeId').value = '';
   document.getElementById('itemExternalUrl').value = '';
@@ -1179,7 +1147,6 @@ function openItemModal(itemId = null, folderId = null) {
   updateItemTypeTabs();
 
   if (itemId) {
-    // نجيب بيانات العنصر
     supabaseClient
       .from('folder_items')
       .select('*')
@@ -1228,10 +1195,8 @@ function extractYoutubeId(input) {
   if (!input) return null;
   input = input.trim();
 
-  // لو ID مباشر (11 حرف)
   if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
 
-  // لو رابط
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
     /[?&]v=([a-zA-Z0-9_-]{11})/
@@ -2237,7 +2202,6 @@ function bindPdfActions() {
   });
 }
 
-/* ─────────────── توليد PDF ─────────────── */
 async function exportSinglePdf(attempt) {
   try {
     showProgress('جارٍ توليد PDF...', 'من فضلك استنى');
@@ -2561,7 +2525,6 @@ async function exportSinglePdfWithoutDialog(attempt, done, total) {
   template.innerHTML = '';
 }
 
-/* ─────────────── Progress ─────────────── */
 function showProgress(title, text) {
   const modal = document.getElementById('progressModal');
   if (!modal) return;
@@ -2773,7 +2736,7 @@ function renderDetails(a) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Modal إنشاء امتحان (مختصر — النسخة الكاملة موجودة سابقاً)
+   11. Modal إنشاء امتحان
    ═══════════════════════════════════════════════════════════════ */
 function openExamModal(editId = null) {
   const modal = document.getElementById('examModal');
@@ -3385,40 +3348,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.getElementById('saveCourseBtn')?.addEventListener('click', saveCourse);
 
-  // رفع الغلاف
-  document.getElementById('courseCoverBtn')?.addEventListener('click', () => {
-    document.getElementById('courseCoverInput')?.click();
-  });
-  document.getElementById('courseCoverPreview')?.addEventListener('click', () => {
-    document.getElementById('courseCoverInput')?.click();
-  });
+  /* ─── معاينة لينك الغلاف ─── */
+  document.getElementById('courseCoverUrl')?.addEventListener('input', (e) => {
+    const url = e.target.value.trim();
+    const preview = document.getElementById('courseCoverPreview');
+    if (!preview) return;
 
-  document.getElementById('courseCoverInput')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      Toast.error('خطأ', 'الصورة كبيرة — الحد 5 MB');
+    if (!url) {
+      preview.innerHTML = '<i class="fa-solid fa-image"></i><p>هتلاقي معاينة الصورة هنا</p>';
+      preview.classList.remove('has-image');
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
-      Toast.error('خطأ', 'الملف مش صورة');
-      return;
-    }
-
-    currentCoverFile = file;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const preview = document.getElementById('courseCoverPreview');
-      preview.innerHTML = `<img src="${ev.target.result}" alt="Cover">`;
+    const img = new Image();
+    img.onload = () => {
+      preview.innerHTML = `<img src="${escapeHtml(url)}" alt="Cover">`;
       preview.classList.add('has-image');
     };
-    reader.readAsDataURL(file);
+    img.onerror = () => {
+      preview.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><p>اللينك مش صورة صالحة</p>';
+      preview.classList.remove('has-image');
+    };
+    img.src = url;
   });
 
-  // تحديث الفروع في الكورس
+  /* ─── تحديث الفروع في الكورس ─── */
   $$('input[name="courseGrade"], input[name="courseType"]').forEach(i => {
     i.addEventListener('change', updateCourseBranchesVisibility);
   });
