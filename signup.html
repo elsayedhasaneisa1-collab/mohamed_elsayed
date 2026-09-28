@@ -16,6 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="auth.css">
+<link rel="stylesheet" href="ui.css">
 </head>
 <body class="page-auth">
 
@@ -49,6 +50,7 @@
 
       <form id="signupForm" class="form-grid" novalidate>
 
+        <!-- اسم المستخدم -->
         <div class="field field--full" data-field="username">
           <label class="field__label" for="signupUsername">
             <i class="fa-solid fa-at"></i>
@@ -75,6 +77,7 @@
           </small>
         </div>
 
+        <!-- الاسم رباعي -->
         <div class="field field--full" data-field="fullname">
           <label class="field__label" for="signupFullname">
             <i class="fa-solid fa-id-card"></i>
@@ -100,6 +103,7 @@
           </small>
         </div>
 
+        <!-- كلمة السر -->
         <div class="field field--full" data-field="password">
           <label class="field__label" for="signupPassword">
             <i class="fa-solid fa-lock"></i>
@@ -132,6 +136,35 @@
           <small class="field__err">
             <i class="fa-solid fa-circle-exclamation"></i>
             <span>كلمة السر 6 أحرف على الأقل</span>
+          </small>
+        </div>
+
+        <!-- تأكيد كلمة السر -->
+        <div class="field field--full" data-field="confirm_password">
+          <label class="field__label" for="signupConfirmPassword">
+            <i class="fa-solid fa-lock"></i>
+            تأكيد كلمة السر <span class="req">*</span>
+          </label>
+          <div class="field__wrap">
+            <i class="fa-solid fa-lock lead"></i>
+            <input
+              type="password"
+              id="signupConfirmPassword"
+              class="field__input"
+              placeholder="••••••••"
+              autocomplete="new-password"
+              required>
+            <button type="button" class="field__toggle" data-toggle="signupConfirmPassword" aria-label="إظهار كلمة السر">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          <small class="field__hint">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>أعد كتابة كلمة السر</span>
+          </small>
+          <small class="field__err">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <span>كلمتا السر غير متطابقتين</span>
           </small>
         </div>
 
@@ -193,29 +226,58 @@
           </small>
         </div>
 
+        <!-- الصف الدراسي (Custom Select) -->
         <div class="field field--full" data-field="grade">
-          <label class="field__label" for="signupGrade">
+          <label class="field__label">
             <i class="fa-solid fa-layer-group"></i>
             الصف الدراسي <span class="req">*</span>
           </label>
-          <div class="field__wrap">
-            <i class="fa-solid fa-layer-group lead"></i>
-            <select id="signupGrade" class="field__input" required>
-              <option value="">اختر الصف الدراسي</option>
-              <option value="الأول الإعدادي">الأول الإعدادي</option>
-              <option value="الثاني الإعدادي">الثاني الإعدادي</option>
-              <option value="الثالث الإعدادي">الثالث الإعدادي</option>
-              <option value="الأول الثانوي">الأول الثانوي</option>
-              <option value="الثاني الثانوي">الثاني الثانوي</option>
-              <option value="الثالث الثانوي">الثالث الثانوي</option>
-            </select>
+
+          <!-- زرار فتح القائمة -->
+          <button type="button" class="custom-select-btn" id="gradeSelectBtn">
+            <i class="fa-solid fa-layer-group"></i>
+            <span id="gradeSelectLabel">اختر الصف الدراسي</span>
+            <i class="fa-solid fa-chevron-down custom-select-btn__arrow"></i>
+          </button>
+
+          <!-- قيمة مخفية -->
+          <input type="hidden" id="signupGrade" value="">
+
+          <!-- القائمة -->
+          <div class="custom-select-menu" id="gradeSelectMenu" hidden>
+            <div class="custom-select-menu__item" data-value="الأول الإعدادي">
+              <span class="custom-select-menu__radio"></span>
+              <span>الأول الإعدادي</span>
+            </div>
+            <div class="custom-select-menu__item" data-value="الثاني الإعدادي">
+              <span class="custom-select-menu__radio"></span>
+              <span>الثاني الإعدادي</span>
+            </div>
+            <div class="custom-select-menu__item" data-value="الثالث الإعدادي">
+              <span class="custom-select-menu__radio"></span>
+              <span>الثالث الإعدادي</span>
+            </div>
+            <div class="custom-select-menu__item" data-value="الأول الثانوي">
+              <span class="custom-select-menu__radio"></span>
+              <span>الأول الثانوي</span>
+            </div>
+            <div class="custom-select-menu__item" data-value="الثاني الثانوي">
+              <span class="custom-select-menu__radio"></span>
+              <span>الثاني الثانوي</span>
+            </div>
+            <div class="custom-select-menu__item" data-value="الثالث الثانوي">
+              <span class="custom-select-menu__radio"></span>
+              <span>الثالث الثانوي</span>
+            </div>
           </div>
+
           <small class="field__err">
             <i class="fa-solid fa-circle-exclamation"></i>
             <span>من فضلك اختر الصف الدراسي</span>
           </small>
         </div>
 
+        <!-- النوع -->
         <div class="field field--full" data-field="type">
           <label class="field__label">
             <i class="fa-solid fa-school"></i>
@@ -239,6 +301,7 @@
           </div>
         </div>
 
+        <!-- الفرع (شرطي) -->
         <div class="field field--full branch-section" id="branchSection" hidden>
           <label class="field__label">
             <i class="fa-solid fa-code-branch"></i>
@@ -262,6 +325,7 @@
           </div>
         </div>
 
+        <!-- الشروط -->
         <div class="field field--full">
           <label class="check-row" id="termsRow">
             <input type="checkbox" id="signupTerms" required>
@@ -273,6 +337,7 @@
           </label>
         </div>
 
+        <!-- زرار الإرسال -->
         <button type="submit" class="btn btn--gold btn--lg btn--block" id="signupBtn">
           <span class="btn__text">
             <i class="fa-solid fa-user-plus"></i>
@@ -334,5 +399,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="ui.js"></script>
 </body>
 </html>

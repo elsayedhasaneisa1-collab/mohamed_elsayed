@@ -158,7 +158,6 @@ function initLoginPage() {
   const passwordInput = document.getElementById('loginPassword');
   const btn = document.getElementById('loginBtn');
 
-  // فلترة الأرقام فقط
   phoneInput?.addEventListener('input', () => {
     phoneInput.value = phoneInput.value.replace(/\D/g, '').slice(0, 11);
     const res = Validators.phone(phoneInput.value);
@@ -196,7 +195,6 @@ function initLoginPage() {
     setBtnLoading(btn, true);
 
     try {
-      // الإيميل الداخلي = الرقم
       const email = `${phone}@manassa.local`;
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
@@ -215,7 +213,6 @@ function initLoginPage() {
       const role = profile?.role || 'student';
       const isActive = profile?.is_active === true;
 
-      // ═══ الأدمن والمدرس ═══
       if (role === 'admin' || role === 'teacher') {
         if (!isActive) {
           await supabaseClient.auth.signOut();
@@ -228,7 +225,6 @@ function initLoginPage() {
         return;
       }
 
-      // ═══ الطالب ═══
       if (!isActive) {
         await supabaseClient.auth.signOut();
         Toast.warn('حسابك قيد المراجعة', 'انتظر تفعيل الإدارة');
@@ -257,9 +253,10 @@ function initSignupPage() {
   const usernameInput    = document.getElementById('signupUsername');
   const fullnameInput    = document.getElementById('signupFullname');
   const passwordInput    = document.getElementById('signupPassword');
+  const confirmPasswordInput = document.getElementById('signupConfirmPassword');
   const phoneInput       = document.getElementById('signupPhone');
   const parentPhoneInput = document.getElementById('signupParentPhone');
-  const gradeSelect      = document.getElementById('signupGrade');
+  const gradeHidden      = document.getElementById('signupGrade');
   const termsCheckbox    = document.getElementById('signupTerms');
   const termsRow         = document.getElementById('termsRow');
   const branchSection    = document.getElementById('branchSection');
@@ -267,6 +264,49 @@ function initSignupPage() {
   const strengthText     = document.getElementById('strengthText');
   const btn = document.getElementById('signupBtn');
 
+  /* ─── Custom Select للصف ─── */
+  const gradeBtn = document.getElementById('gradeSelectBtn');
+  const gradeLabel = document.getElementById('gradeSelectLabel');
+  const gradeMenu = document.getElementById('gradeSelectMenu');
+
+  if (gradeBtn && gradeMenu) {
+    gradeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !gradeMenu.hidden;
+      gradeMenu.hidden = isOpen;
+      gradeBtn.classList.toggle('is-open', !isOpen);
+    });
+
+    $$('.custom-select-menu__item', gradeMenu).forEach(item => {
+      item.addEventListener('click', () => {
+        const value = item.dataset.value;
+
+        gradeHidden.value = value;
+        gradeLabel.textContent = value;
+        gradeLabel.classList.add('is-selected');
+
+        $$('.custom-select-menu__item', gradeMenu).forEach(i => {
+          i.classList.toggle('is-selected', i.dataset.value === value);
+        });
+
+        gradeMenu.hidden = true;
+        gradeBtn.classList.remove('is-open');
+
+        setFieldState(gradeHidden.closest('.field'), 'ok');
+        updateBranch();
+      });
+    });
+
+    // إغلاق القائمة عند الضغط خارجها
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-field="grade"]')) {
+        gradeMenu.hidden = true;
+        gradeBtn.classList.remove('is-open');
+      }
+    });
+  }
+
+  /* ─── تحقق فوري ─── */
   usernameInput?.addEventListener('input', () => {
     const res = Validators.username(usernameInput.value.trim());
     setFieldState(usernameInput.closest('.field'), usernameInput.value ? (res.ok ? 'ok' : 'invalid') : null);
@@ -283,6 +323,28 @@ function initSignupPage() {
     if (strengthMeter) strengthMeter.dataset.level = level;
     if (strengthText) strengthText.textContent = STRENGTH_LABELS[level];
     setFieldState(passwordInput.closest('.field'), pwd ? (pwd.length >= 6 ? 'ok' : 'invalid') : null);
+
+    // لو فيه تأكيد كلمة سر — نتحقق
+    if (confirmPasswordInput && confirmPasswordInput.value) {
+      const confirm = confirmPasswordInput.value;
+      const cField = confirmPasswordInput.closest('.field');
+      if (pwd === confirm) setFieldState(cField, 'ok');
+      else setFieldState(cField, 'invalid');
+    }
+  });
+
+  confirmPasswordInput?.addEventListener('input', () => {
+    const pwd = passwordInput.value;
+    const confirm = confirmPasswordInput.value;
+    const field = confirmPasswordInput.closest('.field');
+
+    if (!confirm) {
+      setFieldState(field, null);
+    } else if (pwd === confirm) {
+      setFieldState(field, 'ok');
+    } else {
+      setFieldState(field, 'invalid');
+    }
   });
 
   phoneInput?.addEventListener('input', () => {
@@ -297,15 +359,10 @@ function initSignupPage() {
     setFieldState(parentPhoneInput.closest('.field'), parentPhoneInput.value ? (res.ok ? 'ok' : 'invalid') : null);
   });
 
-  gradeSelect?.addEventListener('change', () => {
-    setFieldState(gradeSelect.closest('.field'), gradeSelect.value ? 'ok' : 'invalid');
-    updateBranch();
-  });
-
   $$('input[name="type"]').forEach(r => r.addEventListener('change', updateBranch));
 
   function updateBranch() {
-    const grade = gradeSelect.value;
+    const grade = gradeHidden ? gradeHidden.value : '';
     const type = document.querySelector('input[name="type"]:checked')?.value;
     const show = GRADES_THANWY.includes(grade) && type === 'أزهر';
     branchSection.hidden = !show;
@@ -316,15 +373,17 @@ function initSignupPage() {
     termsRow.classList.toggle('is-invalid', !termsCheckbox.checked);
   });
 
+  /* ─── الإرسال ─── */
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const username    = usernameInput.value.trim();
     const fullname    = fullnameInput.value.trim();
     const password    = passwordInput.value;
+    const confirmPwd  = confirmPasswordInput ? confirmPasswordInput.value : password;
     const phone       = phoneInput.value.trim();
     const parentPhone = parentPhoneInput.value.trim();
-    const grade       = gradeSelect.value;
+    const grade       = gradeHidden ? gradeHidden.value : '';
     const type        = document.querySelector('input[name="type"]:checked')?.value || null;
     const branch      = document.querySelector('input[name="branch"]:checked')?.value || null;
     const terms       = termsCheckbox.checked;
@@ -333,6 +392,10 @@ function initSignupPage() {
     if (!Validators.username(username).ok) errs.push('اسم المستخدم غير صالح');
     if (!Validators.fullname(fullname).ok) errs.push('الاسم لازم رباعي');
     if (!Validators.password(password).ok) errs.push('كلمة السر 6 أحرف على الأقل');
+    if (password !== confirmPwd) {
+      errs.push('كلمتا السر غير متطابقتين');
+      setFieldState(confirmPasswordInput.closest('.field'), 'invalid');
+    }
     if (!Validators.phone(phone).ok) errs.push('رقم الهاتف غير صالح');
     if (!Validators.parentPhone(parentPhone).ok) errs.push('رقم ولي الأمر غير صالح');
     if (!grade) errs.push('اختر الصف');
@@ -348,7 +411,7 @@ function initSignupPage() {
     setBtnLoading(btn, true);
 
     try {
-      // ═══ 1) اسم المستخدم ═══
+      /* ─── 1) اسم المستخدم ─── */
       const { data: existingUser } = await supabaseClient
         .from('profiles')
         .select('id')
@@ -362,7 +425,7 @@ function initSignupPage() {
         return;
       }
 
-      // ═══ 2) رقم الهاتف ═══
+      /* ─── 2) رقم الهاتف ─── */
       const { data: existingPhone } = await supabaseClient
         .from('profiles')
         .select('id')
@@ -384,7 +447,7 @@ function initSignupPage() {
         return;
       }
 
-      // ═══ 3) إنشاء الحساب — الإيميل = الرقم ═══
+      /* ─── 3) إنشاء الحساب ─── */
       const email = `${phone}@manassa.local`;
 
       const { data: authData, error: authErr } = await supabaseClient.auth.signUp({
@@ -411,7 +474,7 @@ function initSignupPage() {
         return;
       }
 
-      // تأكد من إنشاء البروفايل
+      /* ─── 4) تأكد من إنشاء البروفايل ─── */
       if (authData?.user?.id) {
         const { data: profileCheck } = await supabaseClient
           .from('profiles')
