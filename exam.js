@@ -19,6 +19,7 @@ let timeLeftMs = 0;
 let cheatCount = 0;
 const MAX_CHEAT = 3;
 let examEnded = false;
+let watermarkInterval = null;
 
 /* ─────────────── التهيئة ─────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -200,6 +201,7 @@ async function startExam() {
   renderQuestion();
   startTimer();
   enterFullscreen();
+  startWatermark();
 }
 
 /* ─────────────── المؤقت ─────────────── */
@@ -407,12 +409,12 @@ async function endExam(reason = 'submit') {
   examEnded = true;
 
   clearInterval(timerInterval);
+  stopWatermark();
 
   Toast.info('جارٍ التسليم...', 'من فضلك استنى');
 
   await saveAllAnswers();
 
-  // ═══ نحسب درجات MCQ تلقائي (المقالي هيتصحح بعدين) ═══
   let autoScore = 0;
   for (const q of questions) {
     const ans = answers[q.id];
@@ -422,14 +424,12 @@ async function endExam(reason = 'submit') {
       const choice = q.choices.find(c => c.id === ans.choiceId);
       if (choice?.is_correct) {
         autoScore += q.marks || 0;
-        // نحفظ درجة الـ MCQ في الإجابة
         await supabaseClient
           .from('answers')
           .update({ marks_awarded: q.marks || 0 })
           .eq('attempt_id', attempt.id)
           .eq('question_id', q.id);
       } else {
-        // إجابة غلط → 0
         await supabaseClient
           .from('answers')
           .update({ marks_awarded: 0 })
@@ -437,10 +437,8 @@ async function endExam(reason = 'submit') {
           .eq('question_id', q.id);
       }
     }
-    // المقالي: نسيبها فارغة لحد ما المدرس يصحح
   }
 
-  // ═══ نحفظ المحاولة (submitted — قيد المراجعة) ═══
   try {
     await supabaseClient
       .from('attempts')
@@ -473,7 +471,134 @@ async function endExam(reason = 'submit') {
   }
 }
 
-/* ─────────────── منع الغش ─────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   Watermark ديناميكي
+   ═══════════════════════════════════════════════════════════════ */
+function startWatermark() {
+  const examMain = document.querySelector('.exam-main');
+  if (!examMain) return;
+
+  const old = document.getElementById('examWatermark');
+  if (old) old.remove();
+
+  const wm = document.createElement('div');
+  wm.id = 'examWatermark';
+  wm.className = 'exam-watermark';
+  document.body.appendChild(wm);
+
+  function updateText() {
+    if (examEnded) return;
+
+    const now = new Date();
+    const time = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const name = currentProfile?.full_name || '—';
+    const phone = currentProfile?.phone || '—';
+
+    wm.textContent = `${name} · ${phone} · ${time}`;
+    wm.style.fontSize = '13px';
+    wm.style.padding = '6px 14px';
+    wm.style.background = 'rgba(0,0,0,.12)';
+    wm.style.color = 'rgba(10,10,10,.35)';
+    wm.style.fontWeight = '700';
+    wm.style.fontFamily = "'Cairo', sans-serif";
+    wm.style.borderRadius = '8px';
+    wm.style.whiteSpace = 'nowrap';
+    wm.style.pointerEvents = 'none';
+    wm.style.userSelect = 'none';
+    wm.style.position = 'fixed';
+    wm.style.zIndex = '9998';
+
+    const maxX = Math.max(20, window.innerWidth - 320);
+    const maxY = Math.max(80, window.innerHeight - 70);
+    const x = Math.max(10, Math.floor(Math.random() * maxX));
+    const y = Math.max(80, Math.floor(Math.random() * maxY));
+
+    wm.style.left = x + 'px';
+    wm.style.top = y + 'px';
+    wm.style.opacity = (Math.random() * 0.2 + 0.15).toFixed(2);
+
+    const rotate = (Math.random() * 10 - 5).toFixed(1);
+    wm.style.transform = `rotate(${rotate}deg)`;
+  }
+
+  updateText();
+  watermarkInterval = setInterval(updateText, 2000);
+}
+
+function stopWatermark() {
+  if (watermarkInterval) {
+    clearInterval(watermarkInterval);
+    watermarkInterval = null;
+  }
+  const wm = document.getElementById('examWatermark');
+  if (wm) wm.remove();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Blackout — شاشة سوداء عند محاولة تصوير
+   ═══════════════════════════════════════════════════════════════ */
+function triggerBlackout(reason) {
+  if (examEnded) return;
+
+  registerCheat(reason || 'محاولة تصوير');
+
+  let overlay = document.getElementById('blackoutOverlay');
+  if (overlay) overlay.remove();
+
+  overlay = document.createElement('div');
+  overlay.id = 'blackoutOverlay';
+  overlay.className = 'blackout-overlay';
+  overlay.innerHTML = `
+    <div class="blackout-overlay__content">
+      <i class="fa-solid fa-camera-retro"></i>
+      <h2>⚠️ تم رصد محاولة تصوير</h2>
+      <p>سيتم استئناف الامتحان خلال لحظات...</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  setTimeout(() => {
+    const el = document.getElementById('blackoutOverlay');
+    if (el) {
+      el.classList.add('is-closing');
+      setTimeout(() => el.remove(), 300);
+    }
+  }, 2500);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   تشويش الشاشة عند فقدان التركيز
+   ═══════════════════════════════════════════════════════════════ */
+function addBlurOverlay() {
+  if (document.getElementById('blurOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'blurOverlay';
+  overlay.className = 'blur-overlay';
+  overlay.innerHTML = `
+    <div class="blur-overlay__content">
+      <i class="fa-solid fa-eye-slash"></i>
+      <h3>⚠️ رجّع تركيزك للامتحان</h3>
+      <p>اضغط في أي مكان للمتابعة</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', () => {
+    removeBlurOverlay();
+  });
+}
+
+function removeBlurOverlay() {
+  const overlay = document.getElementById('blurOverlay');
+  if (overlay) {
+    overlay.classList.add('is-closing');
+    setTimeout(() => overlay.remove(), 250);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   منع الغش
+   ═══════════════════════════════════════════════════════════════ */
 function setupAntiCheat() {
   document.addEventListener('copy', e => { e.preventDefault(); });
   document.addEventListener('cut', e => { e.preventDefault(); });
@@ -481,6 +606,29 @@ function setupAntiCheat() {
   document.addEventListener('contextmenu', e => { e.preventDefault(); });
 
   document.addEventListener('keydown', e => {
+    if (examEnded) return;
+
+    // Print Screen
+    if (e.key === 'PrintScreen' || e.keyCode === 44) {
+      e.preventDefault();
+      triggerBlackout('محاولة تصوير الشاشة');
+      return;
+    }
+
+    // Windows + Shift + S (Snipping Tool)
+    if (e.metaKey && e.shiftKey && e.key.toUpperCase() === 'S') {
+      e.preventDefault();
+      triggerBlackout('محاولة تصوير الشاشة');
+      return;
+    }
+
+    // Windows + PrintScreen
+    if (e.metaKey && (e.key === 'PrintScreen' || e.keyCode === 44)) {
+      e.preventDefault();
+      triggerBlackout('محاولة تصوير الشاشة');
+      return;
+    }
+
     if (e.key === 'F12') { e.preventDefault(); return; }
     if (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) {
       e.preventDefault(); return;
@@ -493,17 +641,29 @@ function setupAntiCheat() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && !examEnded) {
       registerCheat('خروج من الشاشة');
+      addBlurOverlay();
+    } else if (!document.hidden && !examEnded) {
+      removeBlurOverlay();
     }
   });
 
   window.addEventListener('blur', () => {
-    if (!examEnded) registerCheat('فقدان التركيز');
+    if (!examEnded) {
+      registerCheat('فقدان التركيز');
+      addBlurOverlay();
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    removeBlurOverlay();
   });
 
   history.pushState(null, '', location.href);
   window.addEventListener('popstate', () => {
     history.pushState(null, '', location.href);
   });
+
+  startWatermark();
 }
 
 function registerCheat(reason) {
