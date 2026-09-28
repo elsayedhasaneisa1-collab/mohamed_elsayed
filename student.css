@@ -721,3 +721,106 @@ body.page-student{
   .student-q-answer-text{font-size:.85rem;padding:10px 12px}
   .student-q-feedback__body{font-size:.82rem}
 }
+/* ═══════════════════════════════════════════════════════════════
+   فوتر الطالب
+   ═══════════════════════════════════════════════════════════════ */
+.site-footer{
+  width:100%;
+  margin:40px auto 10px;
+  text-align:center;
+  padding:24px 16px 12px;
+  border-top:1px solid var(--line-2);
+  position:relative;
+}
+.site-footer::before{
+  content:"";
+  position:absolute;
+  top:-1px;inset-inline-start:50%;
+  transform:translateX(50%);
+  width:80px;height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  box-shadow:0 0 12px var(--gold);
+}
+
+.site-footer__made{
+  font-size:.82rem;
+  color:var(--muted);
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:center;
+}
+
+.maker-link{
+  font-weight:800;
+  font-family:'Cairo',sans-serif;
+  position:relative;
+  padding:2px 6px;
+  background:linear-gradient(120deg,var(--gold-2),var(--gold),var(--gold-deep));
+  background-size:200% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  transition:.3s var(--ease);
+  animation:makerFlow 4s linear infinite;
+  border-radius:6px;
+}
+
+.maker-link::before{
+  content:"";
+  position:absolute;
+  inset:-4px -6px;
+  border-radius:8px;
+  background:rgba(230,184,0,.06);
+  border:1px solid rgba(230,184,0,.15);
+  opacity:0;
+  transition:.3s var(--ease);
+  z-index:-1;
+}
+
+.maker-link:hover{
+  transform:translateY(-2px);
+  filter:drop-shadow(0 4px 10px rgba(230,184,0,.5));
+}
+
+.maker-link:hover::before{
+  opacity:1;
+  background:rgba(230,184,0,.12);
+  border-color:rgba(230,184,0,.35);
+}
+
+.maker-link::after{
+  content:"";
+  position:absolute;
+  bottom:-1px;inset-inline:6px;
+  height:1.5px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  transform:scaleX(0);
+  transition:transform .4s var(--ease);
+}
+
+.maker-link:hover::after{
+  transform:scaleX(1);
+}
+
+@keyframes makerFlow{
+  0%{background-position:0% 50%}
+  100%{background-position:200% 50%}
+}
+
+/* مساحة للفوتر فوق الـ bottom bar */
+body.page-student{
+  padding-bottom:calc(80px + env(safe-area-inset-bottom, 0) + 20px);
+}
+
+/* ─── موبايل ─── */
+@media(max-width:520px){
+  .site-footer{
+    margin:30px auto 10px;
+    padding:20px 12px 10px;
+  }
+  .site-footer__made{
+    font-size:.78rem;
+  }
+}
