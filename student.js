@@ -26,7 +26,7 @@ function renderWelcome() {
 async function loadStats() {
   const now = new Date().toISOString();
 
-  const [examsRes, assignmentsRes, pendingRes, gradedRes] = await Promise.all([
+  const [examsRes, assignmentsRes, pendingRes, gradedRes, coursesRes, activeCoursesRes] = await Promise.all([
     supabaseClient
       .from('exams')
       .select('id', { count: 'exact', head: true })
@@ -55,13 +55,29 @@ async function loadStats() {
       .from('attempts')
       .select('id', { count: 'exact', head: true })
       .eq('student_id', currentUser.id)
-      .eq('status', 'graded')
+      .eq('status', 'graded'),
+
+    supabaseClient
+      .from('courses')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_published', true)
+      .eq('grade', currentProfile.grade)
+      .eq('type', currentProfile.type),
+
+    supabaseClient
+      .from('enrollments')
+      .select('id', { count: 'exact', head: true })
+      .eq('student_id', currentUser.id)
+      .eq('status', 'active')
   ]);
 
   $('#statAvailable').textContent = examsRes.count || 0;
   $('#statAssignments').textContent = assignmentsRes.count || 0;
   $('#statPending').textContent = pendingRes.count || 0;
   $('#statGraded').textContent = gradedRes.count || 0;
+
+  const statCoursesEl = document.getElementById('statCourses');
+  if (statCoursesEl) statCoursesEl.textContent = activeCoursesRes.count || 0;
 }
 
 /* ─────────────── دالة مساعدة ─────────────── */
@@ -74,7 +90,195 @@ function studentSeesItem(item) {
   return item.branch === currentProfile.branch;
 }
 
-/* ─────────────── الامتحانات المتاحة ─────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   الكورسات
+   ═══════════════════════════════════════════════════════════════ */
+async function loadCourses() {
+  const c = document.getElementById('coursesContainer');
+  if (!c) return;
+  c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
+
+  try {
+    const { data: courses, error } = await supabaseClient
+      .from('courses')
+      .select('id, title, description, cover_url, grade, type, branch')
+      .eq('is_published', true)
+      .eq('grade', currentProfile.grade)
+      .eq('type', currentProfile.type)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Courses error:', error);
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
+
+    const filtered = (courses || []).filter(co => {
+      if (currentProfile.type === 'عام') return true;
+      if (currentProfile.grade.includes('إعدادي')) return true;
+      if (!co.branch) return true;
+      return co.branch === currentProfile.branch;
+    });
+
+    if (!filtered.length) {
+      c.innerHTML = emptyState('fa-book-open', 'مفيش كورسات متاحة', 'استنى لما الأستاذ ينشر كورس لصفك');
+      return;
+    }
+
+    const courseIds = filtered.map(co => co.id);
+    const { data: enrollments } = await supabaseClient
+      .from('enrollments')
+      .select('id, course_id, status')
+      .eq('student_id', currentUser.id)
+      .in('course_id', courseIds);
+
+    const enrollMap = {};
+    (enrollments || []).forEach(e => { enrollMap[e.course_id] = e; });
+
+    c.innerHTML = filtered.map(co => courseCardStudent(co, enrollMap[co.id])).join('');
+    bindCourseActions();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
+  }
+}
+
+function courseCardStudent(course, enrollment) {
+  const status = enrollment?.status || 'none';
+  const isActive = status === 'active';
+  const isPending = status === 'pending';
+  const isRejected = status === 'rejected';
+
+  let statusBadge = '';
+  if (isActive) {
+    statusBadge = '<span class="course-card-student__status course-card-student__status--active"><i class="fa-solid fa-check"></i> مشترك</span>';
+  } else if (isPending) {
+    statusBadge = '<span class="course-card-student__status course-card-student__status--pending"><i class="fa-solid fa-clock"></i> قيد المراجعة</span>';
+  } else if (isRejected) {
+    statusBadge = '<span class="course-card-student__status course-card-student__status--rejected"><i class="fa-solid fa-xmark"></i> مرفوض</span>';
+  }
+
+  let cardCls = 'course-card-student';
+  if (isActive) cardCls += ' course-card-student--active';
+  else if (isPending) cardCls += ' course-card-student--pending';
+  else cardCls += ' course-card-student--locked';
+
+  const coverHtml = course.cover_url
+    ? `<img src="${escapeHtml(course.cover_url)}" alt="${escapeHtml(course.title)}" loading="lazy">`
+    : `<div class="course-card-student__cover-fallback"><i class="fa-solid fa-book-open"></i></div>`;
+
+  let actionsHtml = '';
+  if (isActive) {
+    actionsHtml = `
+      <button class="btn btn--gold btn--sm" data-action="open" data-id="${course.id}">
+        <i class="fa-solid fa-play"></i> افتح الكورس
+      </button>
+    `;
+  } else if (isPending) {
+    actionsHtml = `
+      <button class="btn btn--line btn--sm" disabled>
+        <i class="fa-solid fa-hourglass-half"></i> قيد المراجعة
+      </button>
+    `;
+  } else if (isRejected) {
+    actionsHtml = `
+      <button class="btn btn--line btn--sm" disabled>
+        <i class="fa-solid fa-circle-xmark"></i> مرفوض
+      </button>
+    `;
+  } else {
+    actionsHtml = `
+      <button class="btn btn--gold btn--sm" data-action="enroll" data-id="${course.id}">
+        <i class="fa-solid fa-user-plus"></i> اشترك الآن
+      </button>
+    `;
+  }
+
+  return `
+    <div class="${cardCls}" data-id="${course.id}">
+      <div class="course-card-student__cover">
+        ${coverHtml}
+        ${statusBadge}
+      </div>
+      <div class="course-card-student__body">
+        <h3>${escapeHtml(course.title)}</h3>
+        ${course.description ? `<p class="course-card-student__desc">${escapeHtml(course.description)}</p>` : ''}
+        <div class="course-card-student__meta">
+          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(course.grade || '—')}</span>
+          <span><i class="fa-solid fa-school"></i> ${escapeHtml(course.type || 'عام')}${course.branch ? ' - ' + escapeHtml(course.branch) : ''}</span>
+        </div>
+        <div class="course-card-student__acts">
+          ${actionsHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindCourseActions() {
+  $$('#coursesContainer [data-action]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+
+      if (action === 'enroll') {
+        await enrollInCourse(id, btn);
+      } else if (action === 'open') {
+        window.location.href = `course.html?id=${id}`;
+      }
+    });
+  });
+}
+
+async function enrollInCourse(courseId, btn) {
+  const ok = await UI.confirm({
+    type: 'info',
+    title: 'الاشتراك في الكورس؟',
+    message: 'هيتم إرسال طلبك للأستاذ للموافقة.',
+    confirmText: 'اشترك',
+    cancelText: 'إلغاء'
+  });
+  if (!ok) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+
+  try {
+    const { error } = await supabaseClient
+      .from('enrollments')
+      .insert({
+        course_id: courseId,
+        student_id: currentUser.id,
+        status: 'pending'
+      });
+
+    if (error) {
+      if (error.code === '23505') {
+        Toast.warn('مشترك بالفعل', 'الطلب موجود');
+      } else {
+        throw error;
+      }
+      btn.disabled = false;
+      return;
+    }
+
+    Toast.success('تم إرسال الطلب ✅', 'استنى موافقة الأستاذ');
+    loadCourses();
+    loadStats();
+
+  } catch (err) {
+    console.error(err);
+    Toast.error('خطأ', err.message || 'حاول تاني');
+    btn.disabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   الامتحانات المتاحة
+   ═══════════════════════════════════════════════════════════════ */
 async function loadAvailableExams() {
   const c = document.getElementById('availableContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -115,7 +319,9 @@ async function loadAvailableExams() {
   bindStartButtons();
 }
 
-/* ─────────────── الواجبات ─────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   الواجبات
+   ═══════════════════════════════════════════════════════════════ */
 async function loadAssignments() {
   const c = document.getElementById('assignmentsContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -234,7 +440,7 @@ function bindStartButtons() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   قسم "قيد المراجعة"
+   قيد المراجعة
    ═══════════════════════════════════════════════════════════════ */
 async function loadPendingAttempts() {
   const c = document.getElementById('pendingContainer');
@@ -296,7 +502,7 @@ function pendingAttemptCard(a) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   قسم "تم التصحيح" — مع Modal التفاصيل
+   تم تصحيحها
    ═══════════════════════════════════════════════════════════════ */
 async function loadGradedAttempts() {
   const c = document.getElementById('gradedContainer');
@@ -375,7 +581,6 @@ function gradedAttemptCard(a) {
 }
 
 function bindGradedAttemptClick() {
-  // الضغط على الكارت أو الزرار
   $$('#gradedContainer [data-attempt-id]').forEach(card => {
     card.addEventListener('click', (e) => {
       if (e.target.closest('[data-action="view-details"]')) {
@@ -384,7 +589,6 @@ function bindGradedAttemptClick() {
         openStudentAttemptModal(id);
         return;
       }
-      // الضغط على الكارت كله
       if (!e.target.closest('button')) {
         const id = card.dataset.attemptId;
         openStudentAttemptModal(id);
@@ -394,7 +598,7 @@ function bindGradedAttemptClick() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Modal تفاصيل المحاولة (للطالب)
+   Modal تفاصيل المحاولة
    ═══════════════════════════════════════════════════════════════ */
 async function openStudentAttemptModal(attemptId) {
   const modal = document.getElementById('studentAttemptModal');
@@ -406,7 +610,6 @@ async function openStudentAttemptModal(attemptId) {
   body.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
 
   try {
-    // 1) نجيب المحاولة
     const { data: attempt, error: attErr } = await supabaseClient
       .from('attempts')
       .select(`
@@ -422,7 +625,6 @@ async function openStudentAttemptModal(attemptId) {
       return;
     }
 
-    // 2) نجيب الإجابات + الأسئلة
     const { data: answers, error: ansErr } = await supabaseClient
       .from('answers')
       .select(`
@@ -437,7 +639,6 @@ async function openStudentAttemptModal(attemptId) {
       return;
     }
 
-    // 3) نجيب كل الاختيارات للأسئلة MCQ
     const mcqQuestionIds = (answers || [])
       .filter(a => a.questions?.question_type === 'mcq')
       .map(a => a.questions.id);
@@ -452,14 +653,12 @@ async function openStudentAttemptModal(attemptId) {
       allChoices = choicesData || [];
     }
 
-    // 4) ترتيب
     const sortedAnswers = (answers || []).sort((a, b) => {
       const ai = a.questions?.order_index ?? 0;
       const bi = b.questions?.order_index ?? 0;
       return ai - bi;
     });
 
-    // 5) نرندر
     body.innerHTML = renderStudentAttempt(attempt, sortedAnswers, allChoices);
 
   } catch (err) {
@@ -481,7 +680,6 @@ function renderStudentAttempt(attempt, answers, allChoices) {
   const passed = attempt.total_marks && attempt.score >= (exam.pass_marks || 0);
   const isAssignment = exam.kind === 'assignment';
 
-  // ─── Hero (النتيجة النهائية) ───
   let barCls = '';
   if (pct >= 75) barCls = 'percent-bar__fill--ok';
   else if (pct >= 50) barCls = 'percent-bar__fill--warn';
@@ -531,7 +729,6 @@ function renderStudentAttempt(attempt, answers, allChoices) {
     </div>
   `;
 
-  // ─── قائمة الأسئلة ───
   let listHtml = '<div class="student-attempt-list">';
 
   answers.forEach((ans, idx) => {
@@ -539,14 +736,12 @@ function renderStudentAttempt(attempt, answers, allChoices) {
     const isMcq = q.question_type === 'mcq';
     const maxMarks = q.marks || 0;
     const awarded = ans.marks_awarded ?? 0;
-    const earnedPct = maxMarks ? Math.round((awarded / maxMarks) * 100) : 0;
 
-    // حالة السؤال
     let statusCls = '';
     let statusLabel = '';
     let statusIcon = '';
 
-    if (awarded === maxMarks) {
+    if (awarded === maxMarks && maxMarks > 0) {
       statusCls = 'is-correct';
       statusLabel = 'إجابة كاملة';
       statusIcon = 'fa-circle-check';
@@ -564,14 +759,12 @@ function renderStudentAttempt(attempt, answers, allChoices) {
       ? '<span class="student-q-type student-q-type--mcq"><i class="fa-solid fa-list-ul"></i> اختيار</span>'
       : '<span class="student-q-type student-q-type--essay"><i class="fa-solid fa-pen-fancy"></i> مقالي</span>';
 
-    // نص السؤال
     const questionHtml = `
       <div class="student-q-question">
         ${escapeHtml(q.question_text || '')}
       </div>
     `;
 
-    // إجابة الطالب
     let answerHtml = '';
 
     if (isMcq) {
@@ -624,7 +817,6 @@ function renderStudentAttempt(attempt, answers, allChoices) {
       `;
     }
 
-    // تعليق المدرس
     let feedbackHtml = '';
     if (ans.teacher_feedback && ans.teacher_feedback.trim()) {
       feedbackHtml = `
@@ -666,6 +858,57 @@ function renderStudentAttempt(attempt, answers, allChoices) {
   listHtml += '</div>';
 
   return hero + listHtml;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   فيديو الترحيب
+   ═══════════════════════════════════════════════════════════════ */
+async function loadWelcomeVideo() {
+  const section = document.getElementById('welcomeVideoSection');
+  const video = document.getElementById('welcomeVideo');
+  const overlay = document.getElementById('welcomeVideoOverlay');
+
+  if (!section || !video) return;
+
+  try {
+    const { data, error } = await supabaseClient
+      .storage
+      .from('videos')
+      .createSignedUrl('welcome.mp4', 3600);
+
+    if (error || !data?.signedUrl) {
+      console.warn('Video not available:', error?.message);
+      return;
+    }
+
+    video.querySelector('source').src = data.signedUrl;
+    video.load();
+
+    section.hidden = false;
+
+    overlay?.addEventListener('click', () => {
+      video.play();
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.style.display = 'none', 400);
+    });
+
+    video.addEventListener('ended', () => {
+      if (overlay) {
+        overlay.style.display = 'grid';
+        overlay.style.opacity = '1';
+      }
+    });
+
+    video.addEventListener('play', () => {
+      if (overlay) {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.style.display = 'none', 400);
+      }
+    });
+
+  } catch (err) {
+    console.error('Video error:', err);
+  }
 }
 
 /* ─────────────── أدوات ─────────────── */
@@ -744,7 +987,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.target.classList.contains('modal__backdrop')) closeStudentAttemptModal();
   });
 
-  // ESC
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       const modal = document.getElementById('studentAttemptModal');
@@ -754,8 +996,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // تحميل
   loadStats();
+  loadCourses();
   loadAvailableExams();
   loadAssignments();
   loadPendingAttempts();
   loadGradedAttempts();
+  loadWelcomeVideo();
 });
