@@ -66,9 +66,9 @@
       <span>امتحانات</span>
     </div>
     <div class="astat">
-      <div class="astat__ic"><i class="fa-solid fa-clock-rotate-left"></i></div>
-      <b id="statAttempts">—</b>
-      <span>محاولات</span>
+      <div class="astat__ic"><i class="fa-solid fa-book-open"></i></div>
+      <b id="statCourses">—</b>
+      <span>كورسات</span>
     </div>
     <div class="astat">
       <div class="astat__ic"><i class="fa-solid fa-marker"></i></div>
@@ -76,9 +76,9 @@
       <span>محتاج تصحيح</span>
     </div>
     <div class="astat">
-      <div class="astat__ic"><i class="fa-solid fa-circle-check"></i></div>
-      <b id="statGraded">—</b>
-      <span>تم تصحيحها</span>
+      <div class="astat__ic"><i class="fa-solid fa-clock-rotate-left"></i></div>
+      <b id="statEnrollments">—</b>
+      <span>طلبات اشتراك</span>
     </div>
   </div>
 
@@ -93,6 +93,16 @@
       <i class="fa-solid fa-users"></i>
       الطلاب
       <span class="cnt" id="cntStudents">0</span>
+    </button>
+    <button class="admin-tabs__btn" data-tab="courses">
+      <i class="fa-solid fa-book-open"></i>
+      الكورسات
+      <span class="cnt" id="cntCourses">0</span>
+    </button>
+    <button class="admin-tabs__btn" data-tab="enrollments">
+      <i class="fa-solid fa-user-plus"></i>
+      الاشتراكات
+      <span class="cnt" id="cntEnrollments">0</span>
     </button>
     <button class="admin-tabs__btn" data-tab="exams">
       <i class="fa-solid fa-file-pen"></i>
@@ -163,7 +173,55 @@
     </div>
   </section>
 
-  <!-- 3. الامتحانات -->
+  <!-- 3. الكورسات -->
+  <section class="admin-panel" data-panel="courses">
+    <div class="panel-head">
+      <div>
+        <h2>الكورسات</h2>
+        <p>إنشاء وإدارة الكورسات والدروس</p>
+      </div>
+      <div class="panel-tools">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="searchCourses" placeholder="ابحث...">
+        </div>
+        <button class="btn btn--gold btn--sm" id="newCourseBtn">
+          <i class="fa-solid fa-plus"></i>
+          كورس جديد
+        </button>
+      </div>
+    </div>
+    <div id="coursesContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <!-- 4. الاشتراكات -->
+  <section class="admin-panel" data-panel="enrollments">
+    <div class="panel-head">
+      <div>
+        <h2>طلبات الاشتراك</h2>
+        <p>وافق أو ارفض طلبات الطلاب</p>
+      </div>
+      <div class="panel-tools">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="searchEnrollments" placeholder="ابحث...">
+        </div>
+        <select class="field__input" id="filterEnrollmentStatus" style="min-width:180px;padding:11px 14px;">
+          <option value="pending">قيد المراجعة</option>
+          <option value="all">الكل</option>
+          <option value="active">مفعّل</option>
+          <option value="rejected">مرفوض</option>
+        </select>
+      </div>
+    </div>
+    <div id="enrollmentsContainer">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <!-- 5. الامتحانات -->
   <section class="admin-panel" data-panel="exams">
     <div class="panel-head">
       <div>
@@ -182,7 +240,7 @@
     </div>
   </section>
 
-  <!-- 4. تصحيح المقالي -->
+  <!-- 6. تصحيح المقالي -->
   <section class="admin-panel" data-panel="grading">
     <div class="panel-head">
       <div>
@@ -192,7 +250,7 @@
       <div class="panel-tools">
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="search" id="searchGrading" placeholder="ابحث بالاسم أو الامتحان...">
+          <input type="search" id="searchGrading" placeholder="ابحث...">
         </div>
         <select class="field__input" id="filterGrading" style="min-width:180px;padding:11px 14px;">
           <option value="pending">محتاج تصحيح</option>
@@ -206,7 +264,7 @@
     </div>
   </section>
 
-  <!-- 5. المحاولات -->
+  <!-- 7. المحاولات -->
   <section class="admin-panel" data-panel="attempts">
     <div class="panel-head">
       <div>
@@ -232,7 +290,7 @@
     </div>
   </section>
 
-  <!-- 6. PDF -->
+  <!-- 8. PDF -->
   <section class="admin-panel" data-panel="pdf">
     <div class="panel-head">
       <div>
@@ -269,37 +327,248 @@
 </main>
 
 <!-- ═══════════════════════════════════════════════════════════════
+     Modal إنشاء / تعديل كورس
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal" id="courseModal" hidden>
+  <div class="modal__backdrop"></div>
+  <div class="modal__box modal__box--course">
+
+    <div class="modal__head modal__head--course">
+      <h3 id="courseModalTitle">
+        <i class="fa-solid fa-book-open"></i>
+        كورس جديد
+      </h3>
+      <button class="modal__x" id="closeCourseModal" aria-label="إغلاق">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="modal__body modal__body--course" id="courseBody">
+
+      <!-- الغلاف -->
+      <div class="course-cover-upload">
+        <input type="file" id="courseCoverInput" accept="image/*" hidden>
+        <div class="course-cover-preview" id="courseCoverPreview">
+          <i class="fa-solid fa-image"></i>
+          <p>اضغط لرفع صورة الغلاف</p>
+        </div>
+        <button type="button" class="btn btn--line btn--sm" id="courseCoverBtn">
+          <i class="fa-solid fa-upload"></i>
+          رفع غلاف
+        </button>
+      </div>
+
+      <!-- البيانات الأساسية -->
+      <div class="form-section">
+        <div class="form-section__t"><i class="fa-solid fa-circle-info"></i> البيانات الأساسية</div>
+
+        <div class="q-field">
+          <label><i class="fa-solid fa-heading"></i> عنوان الكورس <span class="req">*</span></label>
+          <input type="text" id="courseTitle" class="q-input" placeholder="مثال: اللغة العربية - النحو">
+        </div>
+
+        <div class="q-field">
+          <label><i class="fa-solid fa-align-right"></i> الوصف</label>
+          <textarea id="courseDesc" class="q-textarea" placeholder="وصف الكورس..."></textarea>
+        </div>
+      </div>
+
+      <!-- الصف والنوع -->
+      <div class="form-section">
+        <div class="form-section__t"><i class="fa-solid fa-layer-group"></i> الصف <span class="req">*</span></div>
+        <div class="checkbox-grid" id="courseGradesGrid">
+          <label class="checkbox-item"><input type="checkbox" name="courseGrade" value="الأول الإعدادي"><i class="fa-solid fa-check box"></i> الأول الإعدادي</label>
+          <label class="checkbox-item"><input type="checkbox" name="courseGrade" value="الثاني الإعدادي"><i class="fa-solid fa-check box"></i> الثاني الإعدادي</label>
+          <label class="checkbox-item"><input type="checkbox" name="courseGrade" value="الثالث الإعدادي"><i class="fa-solid fa-check box"></i> الثالث الإعدادي</label>
+          <label class="checkbox-item"><input type="checkbox" name="courseGrade" value="الأول الثانوي"><i class="fa-solid fa-check box"></i> الأول الثانوي</label>
+          <label class="checkbox-item"><input type="checkbox" name="courseGrade" value="الثاني الثانوي"><i class="fa-solid fa-check box"></i> الثاني الثانوي</label>
+          <label class="checkbox-item"><input type="checkbox" name="courseGrade" value="الثالث الثانوي"><i class="fa-solid fa-check box"></i> الثالث الثانوي</label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section__t"><i class="fa-solid fa-school"></i> النوع <span class="req">*</span></div>
+        <div class="checkbox-grid checkbox-grid--2">
+          <label class="checkbox-item"><input type="checkbox" name="courseType" value="عام"><i class="fa-solid fa-check box"></i> عام</label>
+          <label class="checkbox-item"><input type="checkbox" name="courseType" value="أزهر"><i class="fa-solid fa-check box"></i> أزهر</label>
+        </div>
+      </div>
+
+      <div class="form-section" id="courseBranchesSection" hidden>
+        <div class="form-section__t"><i class="fa-solid fa-code-branch"></i> الفرع</div>
+        <div class="checkbox-grid checkbox-grid--2">
+          <label class="checkbox-item"><input type="checkbox" name="courseBranch" value="علمي"><i class="fa-solid fa-check box"></i> علمي</label>
+          <label class="checkbox-item"><input type="checkbox" name="courseBranch" value="أدبي"><i class="fa-solid fa-check box"></i> أدبي</label>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal__foot modal__foot--course">
+      <button type="button" class="btn btn--line" id="cancelCourseBtn">
+        <i class="fa-solid fa-xmark"></i> إلغاء
+      </button>
+      <button type="button" class="btn btn--gold" id="saveCourseBtn">
+        <i class="fa-solid fa-check"></i> حفظ
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Modal إدارة الفولدرات
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal" id="foldersModal" hidden>
+  <div class="modal__backdrop"></div>
+  <div class="modal__box modal__box--folders">
+
+    <div class="modal__head modal__head--folders">
+      <h3 id="foldersModalTitle">
+        <i class="fa-solid fa-folder-tree"></i>
+        إدارة الفولدرات
+      </h3>
+      <button class="modal__x" id="closeFoldersModal" aria-label="إغلاق">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="modal__body modal__body--folders" id="foldersBody">
+      <div class="loader"><span></span><span></span><span></span></div>
+    </div>
+
+    <div class="modal__foot modal__foot--folders">
+      <button type="button" class="btn btn--line" id="closeFoldersBtn">
+        <i class="fa-solid fa-xmark"></i> إغلاق
+      </button>
+      <button type="button" class="btn btn--gold" id="addFolderBtn">
+        <i class="fa-solid fa-folder-plus"></i> إضافة فولدر
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Modal إضافة / تعديل فولدر
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal" id="folderModal" hidden>
+  <div class="modal__backdrop"></div>
+  <div class="modal__box modal__box--sm-form">
+
+    <div class="modal__head">
+      <h3 id="folderModalTitle">فولدر جديد</h3>
+      <button class="modal__x" id="closeFolderModal" aria-label="إغلاق">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="modal__body">
+      <div class="q-field">
+        <label><i class="fa-solid fa-heading"></i> عنوان الفولدر <span class="req">*</span></label>
+        <input type="text" id="folderTitle" class="q-input" placeholder="مثال: حل الدرس الأول">
+      </div>
+      <div class="q-field">
+        <label><i class="fa-solid fa-align-right"></i> الوصف</label>
+        <textarea id="folderDesc" class="q-textarea" placeholder="وصف الفولدر..."></textarea>
+      </div>
+    </div>
+
+    <div class="modal__foot">
+      <button type="button" class="btn btn--line" id="cancelFolderBtn">إلغاء</button>
+      <button type="button" class="btn btn--gold" id="saveFolderBtn">حفظ</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Modal إضافة عنصر للفولدر (فيديو/لينك)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal" id="itemModal" hidden>
+  <div class="modal__backdrop"></div>
+  <div class="modal__box modal__box--sm-form">
+
+    <div class="modal__head">
+      <h3 id="itemModalTitle">عنصر جديد</h3>
+      <button class="modal__x" id="closeItemModal" aria-label="إغلاق">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="modal__body">
+
+      <!-- نوع العنصر -->
+      <div class="exam-kind-tabs" style="grid-template-columns:1fr 1fr;">
+        <label class="exam-kind-tab is-active" data-itemtype="youtube">
+          <input type="radio" name="itemType" value="youtube" checked>
+          <i class="fa-brands fa-youtube"></i>
+          فيديو YouTube
+        </label>
+        <label class="exam-kind-tab" data-itemtype="link">
+          <input type="radio" name="itemType" value="link">
+          <i class="fa-solid fa-link"></i>
+          لينك خارجي
+        </label>
+      </div>
+
+      <div class="q-field">
+        <label><i class="fa-solid fa-heading"></i> العنوان <span class="req">*</span></label>
+        <input type="text" id="itemTitle" class="q-input" placeholder="مثال: شرح الدرس الأول">
+      </div>
+
+      <div class="q-field" id="itemYoutubeField">
+        <label><i class="fa-brands fa-youtube"></i> YouTube ID أو رابط الفيديو <span class="req">*</span></label>
+        <input type="text" id="itemYoutubeId" class="q-input" placeholder="مثال: dQw4w9WgXcQ أو رابط كامل" dir="ltr">
+        <small class="field__hint">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>لصق الرابط كامل، هنستخرج الـ ID تلقائياً</span>
+        </small>
+      </div>
+
+      <div class="q-field" id="itemLinkField" hidden>
+        <label><i class="fa-solid fa-link"></i> الرابط <span class="req">*</span></label>
+        <input type="text" id="itemExternalUrl" class="q-input" placeholder="https://..." dir="ltr">
+      </div>
+
+      <div class="q-field">
+        <label><i class="fa-solid fa-align-right"></i> الوصف</label>
+        <textarea id="itemDesc" class="q-textarea" placeholder="وصف..."></textarea>
+      </div>
+
+    </div>
+
+    <div class="modal__foot">
+      <button type="button" class="btn btn--line" id="cancelItemBtn">إلغاء</button>
+      <button type="button" class="btn btn--gold" id="saveItemBtn">حفظ</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
      Modal تصحيح محاولة
      ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="gradingModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--grading">
-
     <div class="modal__head modal__head--grading">
-      <h3 id="gradingModalTitle">
-        <i class="fa-solid fa-marker"></i>
-        تصحيح المحاولة
-      </h3>
+      <h3><i class="fa-solid fa-marker"></i> تصحيح المحاولة</h3>
       <button class="modal__x" id="closeGradingModal" aria-label="إغلاق">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-
     <div class="modal__body modal__body--grading" id="gradingBody">
       <div class="loader"><span></span><span></span><span></span></div>
     </div>
-
     <div class="modal__foot modal__foot--grading">
       <button type="button" class="btn btn--line" id="cancelGradingBtn">
-        <i class="fa-solid fa-xmark"></i>
-        إلغاء
+        <i class="fa-solid fa-xmark"></i> إلغاء
       </button>
       <button type="button" class="btn btn--gold" id="saveGradingBtn">
-        <i class="fa-solid fa-check"></i>
-        حفظ التصحيح
+        <i class="fa-solid fa-check"></i> حفظ التصحيح
       </button>
     </div>
-
   </div>
 </div>
 
