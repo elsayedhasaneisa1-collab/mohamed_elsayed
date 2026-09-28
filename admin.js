@@ -1234,28 +1234,12 @@ async function exportSinglePdfWithoutDialog(attempt, done, total) {
   const template = document.getElementById('pdfTemplate');
   template.innerHTML = html;
 
-  const canvas = await html2canvas(template.firstElementChild, {
+const canvas = await html2canvas(template.firstElementChild, {
   scale: 1.5,
   backgroundColor: '#ffffff',
   useCORS: true,
-  logging: false,
-  allowTaint: true,
-  onclone: (clonedDoc) => {
-    // نظهر الـ template في الـ clone
-    const clonedTemplate = clonedDoc.getElementById('pdfTemplate');
-    if (clonedTemplate) {
-      clonedTemplate.style.opacity = '1';
-      clonedTemplate.style.zIndex = '9999';
-      clonedTemplate.style.left = '0';
-      clonedTemplate.style.position = 'relative';
-    }
-  }
+  logging: false
 });
-    scale: 2,
-    backgroundColor: '#ffffff',
-    useCORS: true,
-    logging: false
-  });
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
