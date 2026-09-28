@@ -1,14 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
    admin.js — لوحة التحكم
    منصة الأستاذ محمد عيسى
-   الأدمن + المدرس: نفس الصلاحيات الكاملة
-   ⚠️ $ و $$ معرّفين في auth.js
-   ⚠️ UI.confirm في ui.js
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
 
-/* ─────────────── الحالة ─────────────── */
 let currentUser = null;
 let currentProfile = null;
 let isAdmin = false;
@@ -21,7 +17,6 @@ let cache = {
 };
 let currentDetailsAttempt = null;
 
-// حالة إنشاء الامتحان
 let examModalState = {
   isOpen: false,
   editingId: null,
@@ -72,7 +67,6 @@ async function loadStats() {
 
     setText('statAttempts', attemptsCount);
     setText('statPdf', pdfCount);
-
     setText('cntPending', pendingCount);
     setText('cntStudents', studentsCount);
     setText('cntExams', examsCount);
@@ -90,7 +84,7 @@ function setText(id, val) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Tabs + Lazy Loading
+   Tabs
    ═══════════════════════════════════════════════════════════════ */
 function initTabs() {
   const loaded = { pending: true };
@@ -713,7 +707,6 @@ function pdfCard(a) {
 }
 
 function bindPdfActions() {
-  // نزول على الكارت
   $$('#pdfContainer [data-attempt-id]').forEach(card => {
     card.addEventListener('click', (e) => {
       if (e.target.closest('button')) return;
@@ -722,7 +715,6 @@ function bindPdfActions() {
     });
   });
 
-  // أزرار
   $$('#pdfContainer [data-action]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -757,12 +749,10 @@ function bindPdfActions() {
    Modal تفاصيل الطالب
    ═══════════════════════════════════════════════════════════════ */
 async function openStudentDetails(attemptId) {
-  // نجيب المحاولة
   let attempt = cache.attempts.find(a => a.id === attemptId);
   if (!attempt) attempt = cache.pdf.find(a => a.id === attemptId);
 
   if (!attempt) {
-    // نجيبها من Supabase
     const { data, error } = await supabaseClient
       .from('attempts')
       .select(`
@@ -784,7 +774,6 @@ async function openStudentDetails(attemptId) {
 
   body.innerHTML = renderDetails(attempt);
 
-  // نحدّث الحالة في الـ modal لو الـ PDF اتنزل أو لأ
   const pdfBtn = document.getElementById('downloadStudentPdfBtn');
   if (pdfBtn) {
     pdfBtn.innerHTML = attempt.pdf_exported
@@ -811,7 +800,6 @@ function renderDetails(a) {
   const passed = a.total_marks && a.score >= (exam.pass_marks || 0);
   const time = calcDuration(a.started_at, a.submitted_at || a.expires_at);
 
-  // اختر لون شريط النسبة
   let barCls = '';
   if (pct >= 75) barCls = 'percent-bar__fill--ok';
   else if (pct >= 50) barCls = 'percent-bar__fill--warn';
@@ -820,7 +808,6 @@ function renderDetails(a) {
   const initials = (student.full_name || '؟').trim().split(' ')[0].charAt(0);
 
   return `
-    <!-- معلومات الطالب -->
     <div class="details-hero">
       <div class="details-hero__avatar">${escapeHtml(initials)}</div>
       <div class="details-hero__info">
@@ -832,7 +819,6 @@ function renderDetails(a) {
       </div>
     </div>
 
-    <!-- النتيجة -->
     <div class="result-stats">
       <div class="rstat ${pct >= 75 ? 'rstat--ok' : (pct >= 50 ? 'rstat--warn' : 'rstat--err')}">
         <div class="rstat__ic"><i class="fa-solid fa-star"></i></div>
@@ -856,7 +842,6 @@ function renderDetails(a) {
       </div>
     </div>
 
-    <!-- شريط النسبة -->
     <div class="percent-bar">
       <div class="percent-bar__head">
         <span><i class="fa-solid fa-chart-line"></i> نسبة النجاح</span>
@@ -867,7 +852,6 @@ function renderDetails(a) {
       </div>
     </div>
 
-    <!-- تفاصيل إضافية -->
     <div class="details-info">
       <div class="dinfo">
         <i class="fa-solid fa-file-pen"></i>
@@ -911,13 +895,13 @@ function renderDetails(a) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   توليد PDF — بالعربي
+   توليد PDF — بالعربي (html2canvas)
    ═══════════════════════════════════════════════════════════════ */
 async function exportSinglePdf(attempt) {
   try {
     showProgress('جارٍ توليد PDF...', 'من فضلك استنى');
 
-    // نجيب الإجابات
+    // 1) نجيب الإجابات
     const { data: answers, error } = await supabaseClient
       .from('answers')
       .select(`
@@ -930,40 +914,35 @@ async function exportSinglePdf(attempt) {
 
     if (error) throw error;
 
-    // نرتب الإجابات حسب order_index
     const sortedAnswers = (answers || []).sort((a, b) => {
       const ai = a.questions?.order_index ?? 0;
       const bi = b.questions?.order_index ?? 0;
       return ai - bi;
     });
 
-    // نبني HTML
+    updateProgress(15, 'جارٍ التحضير...');
+
+    // 2) نبني HTML
     const html = buildPdfHtml(attempt, sortedAnswers);
 
-    // نحطها في PDF Template
+    // 3) نحطها في PDF Template
     const template = document.getElementById('pdfTemplate');
     template.innerHTML = html;
 
-    updateProgress(20, 'جارٍ التحويل لصورة...');
+    updateProgress(30, 'جارٍ التحويل لصورة...');
 
-// نحول لصورة
-const canvasPromise = html2canvas(template.firstElementChild, {
-  scale: 1.5,
-  backgroundColor: '#ffffff',
-  useCORS: true,
-  logging: false
-});
+    // 4) نحول لصورة
+    const canvas = await html2canvas(template.firstElementChild, {
+      scale: 1.5,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false,
+      allowTaint: true
+    });
 
-// timeout 30 ثانية
-const timeoutPromise = new Promise((_, reject) =>
-  setTimeout(() => reject(new Error('التوليد خد وقت طويل')), 30000)
-);
+    updateProgress(70, 'جارٍ إنشاء PDF...');
 
-const canvas = await Promise.race([canvasPromise, timeoutPromise]);
-
-updateProgress(70, 'جارٍ إنشاء PDF...');
-
-    // نعمل PDF
+    // 5) نعمل PDF
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -976,23 +955,19 @@ updateProgress(70, 'جارٍ إنشاء PDF...');
     const imgWidth = pageWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    // الصفحة الأولى
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
     if (imgHeight <= pageHeight) {
-      // صفحة واحدة
       doc.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
     } else {
-      // تقسيم على صفحات
-      let yPos = 0;
       let heightLeft = imgHeight;
+      let yPos = 0;
       const pageHeightPx = (pageHeight * canvas.width) / pageWidth;
 
       while (heightLeft > 0) {
         const sourceY = (imgHeight - heightLeft) * (canvas.height / imgHeight);
         const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
 
-        // نعمل canvas جديد لكل صفحة
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = canvas.width;
         pageCanvas.height = sourceHeight;
@@ -1006,7 +981,7 @@ updateProgress(70, 'جارٍ إنشاء PDF...');
           canvas.width, sourceHeight
         );
 
-        const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+        const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
         const drawHeight = (sourceHeight * imgWidth) / canvas.width;
 
         if (yPos > 0) doc.addPage();
@@ -1019,14 +994,14 @@ updateProgress(70, 'جارٍ إنشاء PDF...');
 
     updateProgress(90, 'جارٍ الحفظ...');
 
-    // نحفظ
+    // 6) نحفظ
     const student = attempt.profiles || {};
     const exam = attempt.exams || {};
     const safeName = (student.username || 'student').replace(/[^a-z0-9_]/gi, '_');
     const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
     doc.save(`${safeName}_${safeExam}_${Date.now()}.pdf`);
 
-    // نحدّث pdf_exported
+    // 7) نحدّث pdf_exported
     await supabaseClient
       .from('attempts')
       .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
@@ -1037,19 +1012,19 @@ updateProgress(70, 'جارٍ إنشاء PDF...');
     setTimeout(() => {
       hideProgress();
       Toast.success('تم التنزيل ✅', 'دلوقتي تقدر تمسح من القاعدة');
-      // نحدّث القائمة
+
       const inCache = cache.pdf.find(x => x.id === attempt.id);
       if (inCache) inCache.pdf_exported = true;
+
       renderPdfList();
       updateDeleteBtn();
       loadStats();
     }, 400);
 
-    // نفضي الـ template
     template.innerHTML = '';
 
   } catch (err) {
-    console.error(err);
+    console.error('PDF error:', err);
     hideProgress();
     Toast.error('خطأ', err.message || 'فشل توليد الـ PDF');
   }
@@ -1065,7 +1040,6 @@ function buildPdfHtml(attempt, answers) {
 
   const examType = exam.kind === 'assignment' ? 'واجب' : 'امتحان';
 
-  // صفوف الجدول
   const rows = answers.map((ans, i) => {
     const q = ans.questions || {};
     const isMcq = q.question_type === 'mcq';
@@ -1089,14 +1063,12 @@ function buildPdfHtml(attempt, answers) {
 
   return `
     <div class="pdf-page" dir="rtl">
-      <!-- الهيدر -->
       <div class="pdf-page__header">
         <h1>منصة الأستاذ محمد عيسى التعليمية</h1>
         <p>مدرس اللغة العربية</p>
         <p style="font-size:10px;color:#888;margin-top:4px;">تقرير ${examType} رقمي</p>
       </div>
 
-      <!-- بيانات الطالب -->
       <div class="pdf-section">
         <div class="pdf-section__title">بيانات الطالب</div>
         <div class="pdf-grid">
@@ -1109,7 +1081,6 @@ function buildPdfHtml(attempt, answers) {
         </div>
       </div>
 
-      <!-- بيانات الامتحان -->
       <div class="pdf-section">
         <div class="pdf-section__title">بيانات ${examType}</div>
         <div class="pdf-grid">
@@ -1121,7 +1092,6 @@ function buildPdfHtml(attempt, answers) {
         </div>
       </div>
 
-      <!-- النتيجة -->
       <div class="pdf-result">
         <div class="pdf-result__item">
           <b>${attempt.score ?? 0}</b>
@@ -1141,7 +1111,6 @@ function buildPdfHtml(attempt, answers) {
         </div>
       </div>
 
-      <!-- جدول الإجابات -->
       <div class="pdf-section" style="background:#fff;border:0;padding:0;">
         <div class="pdf-section__title">تفاصيل الإجابات</div>
         <table class="pdf-table">
@@ -1161,7 +1130,6 @@ function buildPdfHtml(attempt, answers) {
         </table>
       </div>
 
-      <!-- الفوتر -->
       <div class="pdf-page__footer">
         منصة الأستاذ محمد عيسى · ${new Date().toLocaleDateString('ar-EG')}
       </div>
@@ -1175,7 +1143,6 @@ function buildPdfHtml(attempt, answers) {
 async function downloadAllPdf() {
   if (!cache.pdf.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات'); return; }
 
-  // نأخذ اللي ما اتنزلش
   const notExported = cache.pdf.filter(a => !a.pdf_exported);
   const list = notExported.length ? notExported : cache.pdf;
 
@@ -1210,8 +1177,8 @@ async function downloadAllPdf() {
   loadStats();
 }
 
+/* ─── نفس الدالة بس بدون dialog ─── */
 async function exportSinglePdfWithoutDialog(attempt, done, total) {
-  // نفس exportSinglePdf بس من غير showProgress/hideProgress
   const { data: answers, error } = await supabaseClient
     .from('answers')
     .select(`
@@ -1234,12 +1201,13 @@ async function exportSinglePdfWithoutDialog(attempt, done, total) {
   const template = document.getElementById('pdfTemplate');
   template.innerHTML = html;
 
-const canvas = await html2canvas(template.firstElementChild, {
-  scale: 1.5,
-  backgroundColor: '#ffffff',
-  useCORS: true,
-  logging: false
-});
+  // ✅ كود نظيف بدون تكرار
+  const canvas = await html2canvas(template.firstElementChild, {
+    scale: 1.5,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false
+  });
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -1248,7 +1216,7 @@ const canvas = await html2canvas(template.firstElementChild, {
   const pageHeight = 297;
   const imgWidth = pageWidth;
   const imgHeight = (canvas.height * imgWidth) / canvas.width;
-  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
   if (imgHeight <= pageHeight) {
     doc.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
@@ -1267,7 +1235,7 @@ const canvas = await html2canvas(template.firstElementChild, {
       const ctx = pageCanvas.getContext('2d');
       ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
 
-      const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+      const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
       const drawHeight = (sourceHeight * imgWidth) / canvas.width;
 
       if (yPos > 0) doc.addPage();
@@ -1284,13 +1252,11 @@ const canvas = await html2canvas(template.firstElementChild, {
   const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
   doc.save(`${String(done + 1).padStart(3, '0')}_${safeName}_${safeExam}.pdf`);
 
-  // نحدّث
   await supabaseClient
     .from('attempts')
     .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
     .eq('id', attempt.id);
 
-  // نحدّث الكاش
   const inCache = cache.pdf.find(x => x.id === attempt.id);
   if (inCache) inCache.pdf_exported = true;
 
@@ -1300,10 +1266,11 @@ const canvas = await html2canvas(template.firstElementChild, {
 /* ─────────────── Progress ─────────────── */
 function showProgress(title, text) {
   const modal = document.getElementById('progressModal');
+  if (!modal) return;
   document.getElementById('progressTitle').textContent = title || 'جارٍ...';
   document.getElementById('progressText').textContent = text || '';
   document.getElementById('progressFill').style.width = '0%';
-  if (modal) modal.hidden = false;
+  modal.hidden = false;
 }
 
 function updateProgress(percent, text) {
@@ -1560,6 +1527,7 @@ function renderMcqChoices(q, index, letters) {
 
 function bindQuestionEvents() {
   const list = document.getElementById('questionsList');
+  if (!list) return;
 
   $$('[data-del]', list).forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -2021,7 +1989,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   $$('input[name="grade"]').forEach(i => i.addEventListener('change', updateBranchesVisibility));
-  $$('input[name="type"]').forEach(i => i.addEventListener('change', updateBranchesVisibility));
+  $$('input[name="type"]')..forEach(i => i.addEventListener('change', updateBranchesVisibility));
 
   document.getElementById('addQuestionBtn')?.addEventListener('click', addQuestion);
   document.getElementById('saveDraftBtn')?.addEventListener('click', () => saveExam('draft'));
@@ -2036,10 +2004,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('downloadStudentPdfBtn')?.addEventListener('click', async () => {
     if (!currentDetailsAttempt) return;
-    // نقفل الـ modal الأول
     const att = currentDetailsAttempt;
     closeStudentDetails();
-    // بعدين ننزّل
     await exportSinglePdf(att);
   });
 
