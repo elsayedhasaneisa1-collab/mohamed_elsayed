@@ -1,10 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════
-   course.js — صفحة الكورس
-   منصة الأستاذ محمد عيسى
-   ⚠️ $ و $$ معرّفين في auth.js
-   ⚠️ UI.confirm في ui.js
-   ═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
 let currentUser = null;
@@ -14,10 +7,16 @@ let currentEnrollment = null;
 let folders = [];
 let folderItemsMap = {};
 let completedItems = new Set();
+
+/* ─── حالة المشغل ─── */
 let ytPlayer = null;
+let ytReady = false;
+let isPlaying = false;
+let isMuted = false;
 let currentPlayingItem = null;
+let progressInterval = null;
 let watermarkTimer = null;
-let blurOverlayActive = false;
+let isSeeking = false;
 
 /* ═══════════════════════════════════════════════════════════════
    التهيئة
@@ -75,7 +74,6 @@ async function loadCourse(courseId) {
       .maybeSingle();
 
     if (!enrollment) {
-      // مش مشترك
       document.getElementById('courseLoading').hidden = true;
       document.getElementById('courseLocked').hidden = false;
       return;
@@ -138,10 +136,7 @@ async function loadCourse(courseId) {
 function renderCourse() {
   const course = currentCourse;
 
-  // عنوان الهيدر
   document.getElementById('courseTopTitle').textContent = course.title || 'الكورس';
-
-  // Hero
   document.getElementById('courseHeroTitle').textContent = course.title || '—';
   document.getElementById('courseHeroDesc').textContent = course.description || '';
 
@@ -225,13 +220,7 @@ function itemHtml(item) {
 
   let iconCls = isYt ? 'citem__icon--youtube' : 'citem__icon--link';
   let icon = isYt ? 'fa-brands fa-youtube' : 'fa-solid fa-link';
-  let subtitle = '';
-
-  if (isYt) {
-    subtitle = item.description || 'درس فيديو';
-  } else {
-    subtitle = item.description || 'رابط خارجي';
-  }
+  let subtitle = item.description || (isYt ? 'درس فيديو' : 'رابط خارجي');
 
   if (isDone) {
     iconCls = 'citem__icon--done';
@@ -258,15 +247,12 @@ function itemHtml(item) {
    أحداث الفولدرات
    ═══════════════════════════════════════════════════════════════ */
 function bindFolderEvents() {
-  // فتح/غلق الفولدر
   $$('.cfolder__head').forEach(head => {
     head.addEventListener('click', () => {
-      const folder = head.closest('.cfolder');
-      folder.classList.toggle('is-open');
+      head.closest('.cfolder').classList.toggle('is-open');
     });
   });
 
-  // فتح درس
   $$('.citem').forEach(item => {
     item.addEventListener('click', () => {
       const itemId = item.dataset.itemId;
@@ -280,7 +266,6 @@ function bindFolderEvents() {
    فتح عنصر
    ═══════════════════════════════════════════════════════════════ */
 function openItem(itemId, type) {
-  // ندوّر على العنصر
   let item = null;
   for (const arr of Object.values(folderItemsMap)) {
     const found = arr.find(it => it.id === itemId);
@@ -300,48 +285,68 @@ function openItem(itemId, type) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   مشغل YouTube
+   مشغل YouTube المخصص
    ═══════════════════════════════════════════════════════════════ */
 function openVideoPlayer(item) {
   currentPlayingItem = item;
 
   document.getElementById('videoPlayerTitle').textContent = item.title || '—';
   document.getElementById('videoPlayerDesc').textContent = item.description || '';
-  document.getElementById('videoPlayerWatermark').textContent =
-    `${currentProfile.full_name || ''} · ${currentProfile.phone || ''}`;
 
   const modal = document.getElementById('videoPlayerModal');
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
+
+  // نرجع كل حاجة للحالة الافتراضية
+  resetPlayerUI();
 
   // نحمّل الفيديو
   loadYouTubePlayer(item.youtube_id);
 
   // نبدأ watermark
   startVideoWatermark();
+}
 
-  // نراقب التركيز
-  startFocusWatcher();
+function resetPlayerUI() {
+  isPlaying = false;
+  isMuted = false;
+  ytReady = false;
+
+  const bigPlay = document.getElementById('videoBigPlay');
+  if (bigPlay) bigPlay.hidden = false;
+
+  const playBtn = document.getElementById('videoPlayBtn');
+  if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+
+  const muteBtn = document.getElementById('videoMuteBtn');
+  if (muteBtn) muteBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+
+  const progressFill = document.getElementById('videoProgressFill');
+  const progressThumb = document.getElementById('videoProgressThumb');
+  const timeCurrent = document.getElementById('videoTimeCurrent');
+  const timeTotal = document.getElementById('videoTimeTotal');
+
+  if (progressFill) progressFill.style.width = '0%';
+  if (progressThumb) progressThumb.style.insetInlineStart = '0%';
+  if (timeCurrent) timeCurrent.textContent = '00:00';
+  if (timeTotal) timeTotal.textContent = '00:00';
 }
 
 function loadYouTubePlayer(videoId) {
   const container = document.getElementById('ytPlayerContainer');
   container.innerHTML = '';
 
-  // لو الـ API محمّل بالفعل
   if (window.YT && window.YT.Player) {
     createYTPlayer(videoId, container);
     return;
   }
 
-  // ننتظر الـ API
   window.onYouTubeIframeAPIReady = function() {
     createYTPlayer(videoId, container);
   };
 }
 
 function createYTPlayer(videoId, container) {
-  // نمسح أي مشغل قديم
   if (ytPlayer) {
     try { ytPlayer.destroy(); } catch (e) {}
     ytPlayer = null;
@@ -356,25 +361,25 @@ function createYTPlayer(videoId, container) {
     width: '100%',
     videoId: videoId,
     playerVars: {
-      autoplay: 1,
-      controls: 1,
+      autoplay: 0,
+      controls: 0,        // ❌ نخفي أزرار YouTube
       modestbranding: 1,
       rel: 0,
       showinfo: 0,
       iv_load_policy: 3,
-      fs: 0,
+      fs: 0,              // ❌ نخفي Fullscreen
       playsinline: 1,
-      disablekb: 0
+      disablekb: 1,       // ❌ نمنع الكيبورد
+      cc_load_policy: 0,
+      origin: window.location.origin
     },
     events: {
       onReady: (e) => {
-        e.target.playVideo();
+        ytReady = true;
+        updateTotalTime(e.target.getDuration());
       },
       onStateChange: (e) => {
-        // 0 = ended
-        if (e.data === 0) {
-          onVideoEnded();
-        }
+        handlePlayerStateChange(e.data);
       },
       onError: (e) => {
         console.error('YT error:', e.data);
@@ -384,67 +389,195 @@ function createYTPlayer(videoId, container) {
   });
 }
 
-function onVideoEnded() {
-  if (!currentPlayingItem) return;
+function handlePlayerStateChange(state) {
+  // 1 = playing, 2 = paused, 0 = ended, 3 = buffering
 
-  // نعلّمه كمكتمل
-  markItemCompleted(currentPlayingItem.id);
+  if (state === 1) {
+    isPlaying = true;
+    updatePlayBtn(true);
+    hideBigPlay();
+    startProgressTracker();
+  } else if (state === 2) {
+    isPlaying = false;
+    updatePlayBtn(false);
+    stopProgressTracker();
+  } else if (state === 0) {
+    isPlaying = false;
+    updatePlayBtn(false);
+    stopProgressTracker();
+    showBigPlay();
 
-  Toast.success('تم ✅', 'تم مشاهدة الدرس');
+    // نعلّمه كمكتمل
+    if (currentPlayingItem) {
+      markItemCompleted(currentPlayingItem.id);
+      Toast.success('تم ✅', 'تم مشاهدة الدرس');
+    }
+  }
 }
 
-function closeVideoPlayer() {
-  const modal = document.getElementById('videoPlayerModal');
-  modal.hidden = true;
-  document.body.style.overflow = '';
+function updatePlayBtn(playing) {
+  const btn = document.getElementById('videoPlayBtn');
+  if (!btn) return;
+  btn.innerHTML = playing
+    ? '<i class="fa-solid fa-pause"></i>'
+    : '<i class="fa-solid fa-play"></i>';
+}
 
-  // نوقف المشغل
-  if (ytPlayer) {
-    try { ytPlayer.stopVideo(); } catch (e) {}
-    try { ytPlayer.destroy(); } catch (e) {}
-    ytPlayer = null;
+function showBigPlay() {
+  const bigPlay = document.getElementById('videoBigPlay');
+  if (bigPlay) bigPlay.hidden = false;
+}
+
+function hideBigPlay() {
+  const bigPlay = document.getElementById('videoBigPlay');
+  if (bigPlay) bigPlay.hidden = true;
+}
+
+/* ─── أزرار التحكم ─── */
+function togglePlay() {
+  if (!ytPlayer || !ytReady) return;
+
+  if (isPlaying) {
+    ytPlayer.pauseVideo();
+  } else {
+    ytPlayer.playVideo();
+  }
+}
+
+function seekBackward() {
+  if (!ytPlayer || !ytReady) return;
+  const current = ytPlayer.getCurrentTime() || 0;
+  ytPlayer.seekTo(Math.max(0, current - 10), true);
+}
+
+function seekForward() {
+  if (!ytPlayer || !ytReady) return;
+  const current = ytPlayer.getCurrentTime() || 0;
+  const total = ytPlayer.getDuration() || 0;
+  ytPlayer.seekTo(Math.min(total, current + 10), true);
+}
+
+function toggleMute() {
+  if (!ytPlayer || !ytReady) return;
+
+  if (isMuted) {
+    ytPlayer.unMute();
+    isMuted = false;
+  } else {
+    ytPlayer.mute();
+    isMuted = true;
   }
 
-  document.getElementById('ytPlayerContainer').innerHTML = '';
+  updateMuteBtn();
+}
 
-  stopVideoWatermark();
-  stopFocusWatcher();
-  currentPlayingItem = null;
+function updateMuteBtn() {
+  const btn = document.getElementById('videoMuteBtn');
+  if (!btn) return;
+  btn.innerHTML = isMuted
+    ? '<i class="fa-solid fa-volume-xmark"></i>'
+    : '<i class="fa-solid fa-volume-high"></i>';
+}
+
+function toggleFullscreen() {
+  const modal = document.getElementById('videoPlayerModal');
+  const box = modal?.querySelector('.modal__box--player');
+  if (!box) return;
+
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    if (box.requestFullscreen) {
+      box.requestFullscreen();
+    } else if (box.webkitRequestFullscreen) {
+      box.webkitRequestFullscreen();
+    } else if (box.webkitEnterFullscreen) {
+      // للـ iOS Safari
+      box.webkitEnterFullscreen();
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+}
+
+/* ─── شريط التقدم ─── */
+function startProgressTracker() {
+  stopProgressTracker();
+  progressInterval = setInterval(updateProgressUI, 250);
+}
+
+function stopProgressTracker() {
+  if (progressInterval) {
+    clearInterval(progressInterval);
+    progressInterval = null;
+  }
+}
+
+function updateProgressUI() {
+  if (!ytPlayer || !ytReady || isSeeking) return;
+
+  const current = ytPlayer.getCurrentTime() || 0;
+  const total = ytPlayer.getDuration() || 0;
+  if (!total) return;
+
+  const pct = (current / total) * 100;
+
+  const fill = document.getElementById('videoProgressFill');
+  const thumb = document.getElementById('videoProgressThumb');
+  const timeCurrent = document.getElementById('videoTimeCurrent');
+  const timeTotal = document.getElementById('videoTimeTotal');
+
+  if (fill) fill.style.width = `${pct}%`;
+  if (thumb) thumb.style.insetInlineStart = `${pct}%`;
+  if (timeCurrent) timeCurrent.textContent = formatTime(current);
+  if (timeTotal) timeTotal.textContent = formatTime(total);
+}
+
+function updateTotalTime(seconds) {
+  const timeTotal = document.getElementById('videoTimeTotal');
+  if (timeTotal) timeTotal.textContent = formatTime(seconds || 0);
+}
+
+function formatTime(sec) {
+  sec = Math.floor(sec || 0);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function seekToPercent(pct) {
+  if (!ytPlayer || !ytReady) return;
+  const total = ytPlayer.getDuration() || 0;
+  if (!total) return;
+  ytPlayer.seekTo((pct / 100) * total, true);
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Watermark داخل الفيديو
+   Watermark
    ═══════════════════════════════════════════════════════════════ */
 function startVideoWatermark() {
-  const overlay = document.getElementById('videoPlayerOverlay');
-  if (!overlay) return;
+  const wm = document.getElementById('videoWatermark');
+  const stage = document.querySelector('.video-player__stage');
+  if (!wm || !stage) return;
 
-  overlay.innerHTML = `
-    <div class="video-player__overlay-text" id="videoWatermarkText">
-      <span>—</span>
-    </div>
-  `;
-
-  const textEl = document.getElementById('videoWatermarkText');
-  const spanEl = textEl.querySelector('span');
+  const span = wm.querySelector('span');
 
   function update() {
-    // رقم الهاتف فقط
-    spanEl.textContent = currentProfile.phone || currentProfile.username || '—';
+    span.textContent = currentProfile.phone || currentProfile.username || '—';
 
-    // مكان عشوائي
-    const maxX = Math.max(20, overlay.offsetWidth - 140);
-    const maxY = Math.max(20, overlay.offsetHeight - 40);
+    const maxX = Math.max(20, stage.offsetWidth - 140);
+    const maxY = Math.max(20, stage.offsetHeight - 40);
     const x = Math.max(10, Math.floor(Math.random() * maxX));
     const y = Math.max(10, Math.floor(Math.random() * maxY));
 
-    textEl.style.left = x + 'px';
-    textEl.style.top = y + 'px';
-    textEl.style.opacity = (Math.random() * 0.25 + 0.6).toFixed(2);
+    wm.style.left = x + 'px';
+    wm.style.top = y + 'px';
+    wm.style.opacity = (Math.random() * 0.25 + 0.6).toFixed(2);
   }
 
   update();
-  // كل 5 ثواني
   watermarkTimer = setInterval(update, 5000);
 }
 
@@ -456,140 +589,32 @@ function stopVideoWatermark() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   مراقبة التركيز (منع التصوير)
+   إغلاق المشغل
    ═══════════════════════════════════════════════════════════════ */
-function startFocusWatcher() {
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('blur', handleBlur);
-  window.addEventListener('focus', handleFocus);
-  document.addEventListener('keydown', handleKeyDown);
-}
+function closeVideoPlayer() {
+  const modal = document.getElementById('videoPlayerModal');
+  modal.hidden = true;
+  document.body.style.overflow = '';
 
-function stopFocusWatcher() {
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
-  window.removeEventListener('blur', handleBlur);
-  window.removeEventListener('focus', handleFocus);
-  document.removeEventListener('keydown', handleKeyDown);
-  blurOverlayActive = false;
-}
-
-function handleVisibilityChange() {
-  if (document.hidden && currentPlayingItem) {
-    pauseVideoAndBlur('خروج من الشاشة');
-  }
-}
-
-function handleBlur() {
-  if (currentPlayingItem && !blurOverlayActive) {
-    pauseVideoAndBlur('فقدان التركيز');
-  }
-}
-
-function handleFocus() {
-  removeBlurOverlay();
-}
-
-function handleKeyDown(e) {
-  if (!currentPlayingItem) return;
-
-  // Print Screen
-  if (e.key === 'PrintScreen' || e.keyCode === 44) {
-    e.preventDefault();
-    handleScreenshotAttempt();
-    return;
-  }
-
-  // Windows + Shift + S
-  if (e.metaKey && e.shiftKey && e.key.toUpperCase() === 'S') {
-    e.preventDefault();
-    handleScreenshotAttempt();
-    return;
-  }
-}
-
-function handleScreenshotAttempt() {
-  if (!currentPlayingItem) return;
-
-  Toast.warn('⚠️ تحذير', 'ممنوع تصوير المحتوى');
-
-  // نشيل الفيديو
   if (ytPlayer) {
-    try { ytPlayer.pauseVideo(); } catch (e) {}
+    try { ytPlayer.stopVideo(); } catch (e) {}
+    try { ytPlayer.destroy(); } catch (e) {}
+    ytPlayer = null;
+    ytReady = false;
   }
 
-  // overlay أسود
-  addBlackoutOverlay();
+  document.getElementById('ytPlayerContainer').innerHTML = '';
 
-  setTimeout(() => {
-    removeBlackoutOverlay();
-  }, 2500);
-}
+  stopProgressTracker();
+  stopVideoWatermark();
 
-function pauseVideoAndBlur(reason) {
-  if (ytPlayer) {
-    try { ytPlayer.pauseVideo(); } catch (e) {}
+  // لو في fullscreen، نطلع
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
   }
-  addBlurOverlay(reason);
-}
 
-function addBlurOverlay(reason) {
-  if (blurOverlayActive) return;
-  blurOverlayActive = true;
-
-  let overlay = document.getElementById('videoBlurOverlay');
-  if (overlay) overlay.remove();
-
-  overlay = document.createElement('div');
-  overlay.id = 'videoBlurOverlay';
-  overlay.className = 'cheat-warning';
-  overlay.innerHTML = `
-    <div class="cheat-warning__box">
-      <i class="fa-solid fa-eye-slash"></i>
-      <h3>⚠️ رجّع تركيزك</h3>
-      <p>${escapeHtml(reason || 'خروج من الشاشة')}</p>
-      <button class="btn btn--gold" id="resumeVideoBtn">متابعة</button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  overlay.querySelector('#resumeVideoBtn').addEventListener('click', () => {
-    removeBlurOverlay();
-    if (ytPlayer) {
-      try { ytPlayer.playVideo(); } catch (e) {}
-    }
-  });
-}
-
-function removeBlurOverlay() {
-  const overlay = document.getElementById('videoBlurOverlay');
-  if (overlay) overlay.remove();
-  blurOverlayActive = false;
-}
-
-function addBlackoutOverlay() {
-  let overlay = document.getElementById('videoBlackout');
-  if (overlay) overlay.remove();
-
-  overlay = document.createElement('div');
-  overlay.id = 'videoBlackout';
-  overlay.style.cssText = `
-    position:fixed;inset:0;z-index:99999;background:#000;
-    display:grid;place-items:center;padding:24px;
-    color:#fff;text-align:center;
-  `;
-  overlay.innerHTML = `
-    <div>
-      <i class="fa-solid fa-camera-retro" style="font-size:3rem;color:#ff5c5c;margin-bottom:16px;display:block;"></i>
-      <h2 style="font-size:1.3rem;color:#ff8a8a;margin-bottom:10px;font-family:'Cairo',sans-serif;">⚠️ تم رصد محاولة تصوير</h2>
-      <p style="color:rgba(255,255,255,.7);font-size:.9rem;">سيتم استئناف الفيديو خلال لحظات...</p>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-}
-
-function removeBlackoutOverlay() {
-  const overlay = document.getElementById('videoBlackout');
-  if (overlay) overlay.remove();
+  currentPlayingItem = null;
+  isPlaying = false;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -604,7 +629,6 @@ function openLinkModal(item) {
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
 
-  // نعلّمه كمكتمل تلقائي بعد الفتح
   setTimeout(() => {
     markItemCompleted(item.id);
   }, 1000);
@@ -624,7 +648,6 @@ async function markItemCompleted(itemId) {
   if (completedItems.has(itemId)) return;
 
   try {
-    // نشوف لو موجود
     const { data: existing } = await supabaseClient
       .from('lesson_progress')
       .select('id')
@@ -650,16 +673,14 @@ async function markItemCompleted(itemId) {
     }
 
     completedItems.add(itemId);
-
-    // نحدّث الواجهة
-    updateProgressUI();
+    updateProgressUI_Section();
 
   } catch (err) {
     console.error('Mark completed error:', err);
   }
 }
 
-function updateProgressUI() {
+function updateProgressUI_Section() {
   const totalItems = Object.values(folderItemsMap).reduce((s, arr) => s + arr.length, 0);
   const completedCount = completedItems.size;
   const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
@@ -668,7 +689,6 @@ function updateProgressUI() {
   document.getElementById('courseProgressFill').style.width = `${pct}%`;
   document.getElementById('courseProgressText').textContent = `${completedCount} / ${totalItems} درس`;
 
-  // نحدّث العناصر
   $$('.citem').forEach(el => {
     const id = el.dataset.itemId;
     if (completedItems.has(id)) {
@@ -685,7 +705,7 @@ function updateProgressUI() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   أحداث
+   الأحداث
    ═══════════════════════════════════════════════════════════════ */
 function setupEventListeners() {
   // إغلاق المشغل
@@ -696,6 +716,63 @@ function setupEventListeners() {
   document.getElementById('linkModal')?.addEventListener('click', (e) => {
     if (e.target.classList.contains('modal__backdrop')) closeLinkModal();
   });
+
+  // أزرار التحكم
+  document.getElementById('videoPlayBtn')?.addEventListener('click', togglePlay);
+  document.getElementById('videoBigPlay')?.addEventListener('click', togglePlay);
+  document.getElementById('videoBackBtn')?.addEventListener('click', seekBackward);
+  document.getElementById('videoForwardBtn')?.addEventListener('click', seekForward);
+  document.getElementById('videoMuteBtn')?.addEventListener('click', toggleMute);
+  document.getElementById('videoFullscreenBtn')?.addEventListener('click', toggleFullscreen);
+
+  // شريط التقدم — النقر والسحب
+  const progressBar = document.getElementById('videoProgressBar');
+  if (progressBar) {
+    let isDragging = false;
+
+    const getPct = (e) => {
+      const rect = progressBar.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      // RTL: من اليمين للشمال
+      const pct = ((rect.right - clientX) / rect.width) * 100;
+      return Math.max(0, Math.min(100, pct));
+    };
+
+    const onStart = (e) => {
+      isDragging = true;
+      isSeeking = true;
+      const pct = getPct(e);
+      const fill = document.getElementById('videoProgressFill');
+      const thumb = document.getElementById('videoProgressThumb');
+      if (fill) fill.style.width = `${pct}%`;
+      if (thumb) thumb.style.insetInlineStart = `${pct}%`;
+    };
+
+    const onMove = (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const pct = getPct(e);
+      const fill = document.getElementById('videoProgressFill');
+      const thumb = document.getElementById('videoProgressThumb');
+      if (fill) fill.style.width = `${pct}%`;
+      if (thumb) thumb.style.insetInlineStart = `${pct}%`;
+    };
+
+    const onEnd = (e) => {
+      if (!isDragging) return;
+      const pct = getPct(e.changedTouches ? { touches: e.changedTouches } : e);
+      seekToPercent(pct);
+      isDragging = false;
+      setTimeout(() => { isSeeking = false; }, 200);
+    };
+
+    progressBar.addEventListener('mousedown', onStart);
+    progressBar.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchend', onEnd);
+  }
 
   // "تم مشاهدة الدرس"
   document.getElementById('markCompletedBtn')?.addEventListener('click', () => {
@@ -718,6 +795,22 @@ function setupEventListeners() {
       const linkModal = document.getElementById('linkModal');
       if (videoModal && !videoModal.hidden) closeVideoPlayer();
       if (linkModal && !linkModal.hidden) closeLinkModal();
+    }
+
+    // Space = Play/Pause
+    if (e.code === 'Space' && currentPlayingItem) {
+      e.preventDefault();
+      togglePlay();
+    }
+  });
+
+  // Fullscreen change
+  document.addEventListener('fullscreenchange', () => {
+    const btn = document.getElementById('videoFullscreenBtn');
+    if (btn) {
+      btn.innerHTML = document.fullscreenElement
+        ? '<i class="fa-solid fa-compress"></i>'
+        : '<i class="fa-solid fa-expand"></i>';
     }
   });
 }
