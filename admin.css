@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════
-   admin.css — لوحة التحكم
-   منصة الأستاذ محمد عيسى
-   ═══════════════════════════════════════════════════════════════ */
-
 body.page-admin{
   padding-bottom:40px;
   min-height:100dvh;
@@ -1193,4 +1188,152 @@ body.page-admin{
   .grading-item{padding:13px;}
   .grading-item__num{width:28px;height:28px;font-size:.75rem;}
   .grading-marks-row{padding:10px 12px;}
+}
+/* ═══════════════════════════════════════════════════════════════
+   Watermark
+   ═══════════════════════════════════════════════════════════════ */
+.exam-watermark{
+  position:fixed;
+  pointer-events:none;
+  user-select:none;
+  z-index:9998;
+  transition:top 2s cubic-bezier(.22,.61,.36,1),
+             left 2s cubic-bezier(.22,.61,.36,1),
+             opacity .6s ease,
+             transform 2s ease;
+  font-family:'Cairo',sans-serif;
+  backdrop-filter:blur(2px);
+  -webkit-backdrop-filter:blur(2px);
+  will-change:top, left, opacity, transform;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Blackout Overlay
+   ═══════════════════════════════════════════════════════════════ */
+.blackout-overlay{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  background:#000;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  animation:blackoutIn .2s var(--ease);
+  opacity:1;
+  transition:opacity .3s var(--ease);
+}
+.blackout-overlay.is-closing{
+  opacity:0;
+}
+@keyframes blackoutIn{
+  from{opacity:0}
+  to{opacity:1}
+}
+
+.blackout-overlay__content{
+  text-align:center;
+  color:#fff;
+  max-width:420px;
+  padding:30px;
+  border-radius:24px;
+  border:1px solid rgba(255,92,92,.4);
+  background:linear-gradient(160deg,rgba(40,10,10,.95),rgba(10,10,10,.95));
+  box-shadow:0 0 80px -20px rgba(255,92,92,.6);
+  animation:blackoutPop .4s var(--ease);
+}
+@keyframes blackoutPop{
+  from{transform:scale(.9);opacity:0}
+  to{transform:scale(1);opacity:1}
+}
+
+.blackout-overlay__content i{
+  font-size:3rem;
+  color:#ff5c5c;
+  margin-bottom:16px;
+  display:block;
+  animation:blackoutShake .6s ease-in-out;
+}
+@keyframes blackoutShake{
+  0%,100%{transform:rotate(0)}
+  25%{transform:rotate(-15deg)}
+  75%{transform:rotate(15deg)}
+}
+
+.blackout-overlay__content h2{
+  font-size:1.3rem;
+  color:#ff8a8a;
+  margin-bottom:10px;
+  font-family:'Cairo',sans-serif;
+  font-weight:900;
+}
+.blackout-overlay__content p{
+  font-size:.9rem;
+  color:rgba(255,255,255,.7);
+  line-height:1.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Blur Overlay (عند فقدان التركيز)
+   ═══════════════════════════════════════════════════════════════ */
+.blur-overlay{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  background:rgba(10,10,10,.85);
+  backdrop-filter:blur(20px) saturate(80%);
+  -webkit-backdrop-filter:blur(20px) saturate(80%);
+  display:grid;
+  place-items:center;
+  padding:24px;
+  animation:blurIn .3s var(--ease);
+  cursor:pointer;
+  opacity:1;
+  transition:opacity .25s var(--ease);
+}
+.blur-overlay.is-closing{
+  opacity:0;
+}
+@keyframes blurIn{
+  from{opacity:0;backdrop-filter:blur(0)}
+  to{opacity:1;backdrop-filter:blur(20px)}
+}
+
+.blur-overlay__content{
+  text-align:center;
+  max-width:420px;
+  padding:30px;
+  border-radius:24px;
+  border:1px solid var(--line);
+  background:linear-gradient(160deg,rgba(30,30,30,.95),rgba(10,10,10,.95));
+  box-shadow:0 0 60px -20px rgba(230,184,0,.5);
+  animation:blurPop .4s var(--ease);
+}
+@keyframes blurPop{
+  from{transform:scale(.9);opacity:0}
+  to{transform:scale(1);opacity:1}
+}
+
+.blur-overlay__content i{
+  font-size:2.8rem;
+  color:var(--gold);
+  margin-bottom:16px;
+  display:block;
+  animation:blurPulse 1.5s infinite;
+}
+@keyframes blurPulse{
+  0%,100%{transform:scale(1);opacity:1}
+  50%{transform:scale(1.1);opacity:.7}
+}
+
+.blur-overlay__content h3{
+  font-size:1.25rem;
+  color:var(--gold-2);
+  margin-bottom:10px;
+  font-family:'Cairo',sans-serif;
+  font-weight:900;
+}
+.blur-overlay__content p{
+  font-size:.88rem;
+  color:var(--muted);
+  line-height:1.7;
 }
