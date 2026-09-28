@@ -1,18 +1,33 @@
+/* ═══════════════════════════════════════════════════════════════
+   admin.js — لوحة التحكم
+   منصة الأستاذ محمد عيسى
+   الأدمن + المدرس: نفس الصلاحيات الكاملة
+   ⚠️ $ و $$ معرّفين في auth.js
+   ⚠️ UI.confirm في ui.js
+   ═══════════════════════════════════════════════════════════════ */
+
 'use strict';
 
 /* ─────────────── الحالة ─────────────── */
 let currentUser = null;
 let currentProfile = null;
 let isAdmin = false;
-let cache = { pending: [], students: [], exams: [], attempts: [], pdf: [] };
+let cache = {
+  pending: [],
+  students: [],
+  exams: [],
+  attempts: [],
+  pdf: []
+};
+let currentDetailsAttempt = null;
 
 // حالة إنشاء الامتحان
 let examModalState = {
   isOpen: false,
-  editingId: null,      // لو بنعدّل
-  kind: 'exam',         // exam / assignment
-  questions: [],        // الأسئلة الحالية
-  maxQuestions: 15      // 15 للامتحان، 5 للواجب
+  editingId: null,
+  kind: 'exam',
+  questions: [],
+  maxQuestions: 15
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -347,7 +362,7 @@ function bindStudentActions() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   3. الامتحانات والواجبات
+   3. الامتحانات
    ═══════════════════════════════════════════════════════════════ */
 async function loadExams() {
   const c = document.getElementById('examsContainer');
@@ -496,7 +511,841 @@ function bindExamActions() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Modal إنشاء / تعديل امتحان
+   4. المحاولات
+   ═══════════════════════════════════════════════════════════════ */
+async function loadAttempts() {
+  const c = document.getElementById('attemptsContainer');
+  c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, started_at, submitted_at, expires_at,
+        profiles:student_id (id, full_name, username, grade, phone, parent_phone),
+        exams:exam_id (id, title, total_marks, pass_marks, kind)
+      `)
+      .order('started_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
+
+    cache.attempts = data || [];
+    renderAttempts();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
+  }
+}
+
+function renderAttempts() {
+  const c = document.getElementById('attemptsContainer');
+  const filter = document.getElementById('filterAttempts')?.value || 'all';
+  const q = (document.getElementById('searchAttempts')?.value || '').toLowerCase().trim();
+
+  let list = cache.attempts;
+  if (filter !== 'all') list = list.filter(a => a.status === filter);
+
+  if (q) {
+    list = list.filter(a => {
+      const s = a.profiles || {};
+      const e = a.exams || {};
+      return (s.full_name || '').toLowerCase().includes(q) ||
+             (s.username || '').toLowerCase().includes(q) ||
+             (s.phone || '').includes(q) ||
+             (e.title || '').toLowerCase().includes(q);
+    });
+  }
+
+  if (!list.length) {
+    c.innerHTML = emptyState('fa-file-circle-xmark', 'مفيش محاولات', 'جرب تغير البحث أو الفلتر');
+    return;
+  }
+
+  c.innerHTML = `<div class="cards-mobile">${list.map(a => attemptCard(a, true)).join('')}</div>`;
+  bindAttemptClick();
+}
+
+function attemptCard(a, clickable = false) {
+  const student = a.profiles || {};
+  const exam = a.exams || {};
+  const statusMap = {
+    in_progress: ['warn', 'fa-hourglass-half', 'قيد الحل'],
+    submitted: ['info', 'fa-paper-plane', 'تم التسليم'],
+    graded: ['ok', 'fa-check-double', 'تم التصحيح'],
+    expired: ['err', 'fa-clock', 'منتهي']
+  };
+  const [cls, ic, label] = statusMap[a.status] || ['mut', 'fa-circle', a.status];
+
+  const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
+  const time = calcDuration(a.started_at, a.submitted_at || a.expires_at);
+
+  const cls2 = clickable ? 'mcard mcard--clickable' : 'mcard';
+
+  return `
+    <div class="${cls2}" data-attempt-id="${a.id}">
+      <div class="mcard__top">
+        <h4>${escapeHtml(student.full_name || '—')}</h4>
+        <span class="badge badge--${cls}"><i class="fa-solid ${ic}"></i> ${label}</span>
+      </div>
+      <div class="mcard__rows">
+        <div><b>الامتحان:</b> ${escapeHtml(exam.title || '—')}</div>
+        <div><b>الصف:</b> ${escapeHtml(student.grade || '—')}</div>
+        <div><b>النتيجة:</b> ${a.score ?? 0}/${a.total_marks ?? 0} (${pct}%)</div>
+        <div><b>الوقت المستغرق:</b> ${time}</div>
+        <div><b>التسليم:</b> ${formatDate(a.submitted_at || a.started_at)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function bindAttemptClick() {
+  $$('#attemptsContainer [data-attempt-id]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      const id = card.dataset.attemptId;
+      openStudentDetails(id);
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. PDF
+   ═══════════════════════════════════════════════════════════════ */
+async function loadPdfList() {
+  const c = document.getElementById('pdfContainer');
+  c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, submitted_at, started_at, expires_at, pdf_exported,
+        profiles:student_id (id, full_name, username, grade, phone, parent_phone),
+        exams:exam_id (id, title, total_marks, pass_marks, kind)
+      `)
+      .in('status', ['submitted', 'graded'])
+      .order('submitted_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
+      return;
+    }
+
+    cache.pdf = data || [];
+    renderPdfList();
+    updateDeleteBtn();
+
+  } catch (err) {
+    console.error(err);
+    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
+  }
+}
+
+function renderPdfList() {
+  const c = document.getElementById('pdfContainer');
+  const q = (document.getElementById('searchPdf')?.value || '').toLowerCase().trim();
+
+  let list = cache.pdf;
+  if (q) {
+    list = list.filter(a => {
+      const s = a.profiles || {};
+      const e = a.exams || {};
+      return (s.full_name || '').toLowerCase().includes(q) ||
+             (s.username || '').toLowerCase().includes(q) ||
+             (s.phone || '').includes(q) ||
+             (e.title || '').toLowerCase().includes(q);
+    });
+  }
+
+  if (!list.length) {
+    c.innerHTML = emptyState('fa-file-pdf', 'مفيش محاولات جاهزة', 'لما طالب يسلّم امتحان هيظهر هنا');
+    return;
+  }
+
+  c.innerHTML = `<div class="cards-mobile">${list.map(pdfCard).join('')}</div>`;
+  bindPdfActions();
+}
+
+function pdfCard(a) {
+  const student = a.profiles || {};
+  const exam = a.exams || {};
+  const done = a.pdf_exported === true;
+  const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
+  const time = calcDuration(a.started_at, a.submitted_at || a.expires_at);
+
+  const deleteBtn = done
+    ? `<button class="btn btn--danger btn--sm" data-action="delete" data-id="${a.id}">
+        <i class="fa-solid fa-trash"></i> مسح من القاعدة
+      </button>`
+    : `<button class="btn btn--line btn--sm" disabled>
+        <i class="fa-solid fa-lock"></i> لازم تنزّل الأول
+      </button>`;
+
+  return `
+    <div class="mcard mcard--clickable" data-attempt-id="${a.id}">
+      <div class="mcard__top">
+        <h4>${escapeHtml(student.full_name || '—')}</h4>
+        ${done
+          ? '<span class="badge badge--ok"><i class="fa-solid fa-check"></i> اتنزل</span>'
+          : '<span class="badge badge--warn"><i class="fa-solid fa-download"></i> لسه ما اتنزلش</span>'}
+      </div>
+      <div class="mcard__rows">
+        <div><b>الامتحان:</b> ${escapeHtml(exam.title || '—')}</div>
+        <div><b>الصف:</b> ${escapeHtml(student.grade || '—')}</div>
+        <div><b>النتيجة:</b> ${a.score ?? 0}/${a.total_marks ?? 0} (${pct}%)</div>
+        <div><b>الوقت المستغرق:</b> ${time}</div>
+        <div><b>التسليم:</b> ${formatDate(a.submitted_at)}</div>
+      </div>
+      <div class="mcard__acts">
+        <button class="btn btn--gold btn--sm" data-action="download" data-id="${a.id}">
+          <i class="fa-solid fa-file-pdf"></i> تنزيل PDF
+        </button>
+        ${deleteBtn}
+      </div>
+    </div>
+  `;
+}
+
+function bindPdfActions() {
+  // نزول على الكارت
+  $$('#pdfContainer [data-attempt-id]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      const id = card.dataset.attemptId;
+      openStudentDetails(id);
+    });
+  });
+
+  // أزرار
+  $$('#pdfContainer [data-action]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      const attempt = cache.pdf.find(a => a.id === id);
+      if (!attempt) return;
+
+      if (action === 'download') {
+        await exportSinglePdf(attempt);
+      } else if (action === 'delete') {
+        const ok = await UI.confirm({
+          type: 'warn',
+          title: 'مسح من قاعدة البيانات؟',
+          message: 'الـ PDF محفوظ عندك، بس المحاولة هتتمسح من السيرفر.',
+          confirmText: 'مسح',
+          cancelText: 'إلغاء'
+        });
+        if (!ok) return;
+
+        const { error } = await supabaseClient.from('attempts').delete().eq('id', id);
+        if (error) { Toast.error('خطأ', error.message); return; }
+        Toast.error('تم المسح', 'اتمسحت من قاعدة البيانات');
+        loadPdfList();
+        loadStats();
+      }
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Modal تفاصيل الطالب
+   ═══════════════════════════════════════════════════════════════ */
+async function openStudentDetails(attemptId) {
+  // نجيب المحاولة
+  let attempt = cache.attempts.find(a => a.id === attemptId);
+  if (!attempt) attempt = cache.pdf.find(a => a.id === attemptId);
+
+  if (!attempt) {
+    // نجيبها من Supabase
+    const { data, error } = await supabaseClient
+      .from('attempts')
+      .select(`
+        id, score, total_marks, status, started_at, submitted_at, expires_at, pdf_exported,
+        profiles:student_id (id, full_name, username, grade, phone, parent_phone, type, branch),
+        exams:exam_id (id, title, total_marks, pass_marks, kind, duration_minutes)
+      `)
+      .eq('id', attemptId)
+      .maybeSingle();
+
+    if (error || !data) { Toast.error('خطأ', 'مش قادر أجيب البيانات'); return; }
+    attempt = data;
+  }
+
+  currentDetailsAttempt = attempt;
+
+  const modal = document.getElementById('studentDetailsModal');
+  const body = document.getElementById('detailsBody');
+
+  body.innerHTML = renderDetails(attempt);
+
+  // نحدّث الحالة في الـ modal لو الـ PDF اتنزل أو لأ
+  const pdfBtn = document.getElementById('downloadStudentPdfBtn');
+  if (pdfBtn) {
+    pdfBtn.innerHTML = attempt.pdf_exported
+      ? '<i class="fa-solid fa-rotate"></i> إعادة تنزيل PDF'
+      : '<i class="fa-solid fa-file-pdf"></i> تنزيل PDF';
+  }
+
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeStudentDetails() {
+  const modal = document.getElementById('studentDetailsModal');
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.style.overflow = '';
+  currentDetailsAttempt = null;
+}
+
+function renderDetails(a) {
+  const student = a.profiles || {};
+  const exam = a.exams || {};
+  const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
+  const passed = a.total_marks && a.score >= (exam.pass_marks || 0);
+  const time = calcDuration(a.started_at, a.submitted_at || a.expires_at);
+
+  // اختر لون شريط النسبة
+  let barCls = '';
+  if (pct >= 75) barCls = 'percent-bar__fill--ok';
+  else if (pct >= 50) barCls = 'percent-bar__fill--warn';
+  else barCls = 'percent-bar__fill--err';
+
+  const initials = (student.full_name || '؟').trim().split(' ')[0].charAt(0);
+
+  return `
+    <!-- معلومات الطالب -->
+    <div class="details-hero">
+      <div class="details-hero__avatar">${escapeHtml(initials)}</div>
+      <div class="details-hero__info">
+        <h3>${escapeHtml(student.full_name || '—')}</h3>
+        <p>
+          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(student.grade || '—')}</span>
+          <span><i class="fa-solid fa-school"></i> ${escapeHtml(student.type || '—')}${student.branch ? ' - ' + escapeHtml(student.branch) : ''}</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- النتيجة -->
+    <div class="result-stats">
+      <div class="rstat ${pct >= 75 ? 'rstat--ok' : (pct >= 50 ? 'rstat--warn' : 'rstat--err')}">
+        <div class="rstat__ic"><i class="fa-solid fa-star"></i></div>
+        <b>${a.score ?? 0}</b>
+        <span>الدرجة</span>
+      </div>
+      <div class="rstat">
+        <div class="rstat__ic"><i class="fa-solid fa-trophy"></i></div>
+        <b>${a.total_marks ?? 0}</b>
+        <span>من</span>
+      </div>
+      <div class="rstat ${pct >= 75 ? 'rstat--ok' : (pct >= 50 ? 'rstat--warn' : 'rstat--err')}">
+        <div class="rstat__ic"><i class="fa-solid fa-percent"></i></div>
+        <b>${pct}%</b>
+        <span>النسبة</span>
+      </div>
+      <div class="rstat rstat--warn">
+        <div class="rstat__ic"><i class="fa-solid fa-clock"></i></div>
+        <b>${escapeHtml(time.split(' ')[0])}</b>
+        <span>الوقت</span>
+      </div>
+    </div>
+
+    <!-- شريط النسبة -->
+    <div class="percent-bar">
+      <div class="percent-bar__head">
+        <span><i class="fa-solid fa-chart-line"></i> نسبة النجاح</span>
+        <b>${pct}%</b>
+      </div>
+      <div class="percent-bar__track">
+        <div class="percent-bar__fill ${barCls}" style="width:${pct}%"></div>
+      </div>
+    </div>
+
+    <!-- تفاصيل إضافية -->
+    <div class="details-info">
+      <div class="dinfo">
+        <i class="fa-solid fa-file-pen"></i>
+        <b>الامتحان:</b>
+        <span class="ar">${escapeHtml(exam.title || '—')}</span>
+      </div>
+      <div class="dinfo">
+        <i class="fa-solid fa-calendar-plus"></i>
+        <b>البداية:</b>
+        <span>${formatDate(a.started_at)}</span>
+      </div>
+      <div class="dinfo">
+        <i class="fa-solid fa-calendar-check"></i>
+        <b>التسليم:</b>
+        <span>${formatDate(a.submitted_at || '—')}</span>
+      </div>
+      <div class="dinfo">
+        <i class="fa-solid fa-hourglass-half"></i>
+        <b>الوقت المستغرق:</b>
+        <span class="ar">${escapeHtml(time)}</span>
+      </div>
+      <div class="dinfo">
+        <i class="fa-solid fa-mobile-screen"></i>
+        <b>هاتف الطالب:</b>
+        <span>${escapeHtml(student.phone || '—')}</span>
+      </div>
+      <div class="dinfo">
+        <i class="fa-solid fa-phone"></i>
+        <b>ولي الأمر:</b>
+        <span>${escapeHtml(student.parent_phone || '—')}</span>
+      </div>
+      <div class="dinfo">
+        <i class="fa-solid ${passed ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
+        <b>النتيجة:</b>
+        <span class="ar" style="color:${passed ? 'var(--ok)' : 'var(--err)'};font-weight:700;">
+          ${passed ? 'ناجح ✅' : 'يحتاج مراجعة ❌'}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   توليد PDF — بالعربي
+   ═══════════════════════════════════════════════════════════════ */
+async function exportSinglePdf(attempt) {
+  try {
+    showProgress('جارٍ توليد PDF...', 'من فضلك استنى');
+
+    // نجيب الإجابات
+    const { data: answers, error } = await supabaseClient
+      .from('answers')
+      .select(`
+        id, selected_choice_id, essay_text, marks_awarded,
+        questions:question_id (question_text, question_type, marks, order_index),
+        choices:selected_choice_id (choice_text)
+      `)
+      .eq('attempt_id', attempt.id)
+      .order('answered_at', { ascending: true });
+
+    if (error) throw error;
+
+    // نرتب الإجابات حسب order_index
+    const sortedAnswers = (answers || []).sort((a, b) => {
+      const ai = a.questions?.order_index ?? 0;
+      const bi = b.questions?.order_index ?? 0;
+      return ai - bi;
+    });
+
+    // نبني HTML
+    const html = buildPdfHtml(attempt, sortedAnswers);
+
+    // نحطها في PDF Template
+    const template = document.getElementById('pdfTemplate');
+    template.innerHTML = html;
+
+    updateProgress(20, 'جارٍ التحويل لصورة...');
+
+    // نحول لصورة
+    const canvas = await html2canvas(template.firstElementChild, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false
+    });
+
+    updateProgress(70, 'جارٍ إنشاء PDF...');
+
+    // نعمل PDF
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    // الصفحة الأولى
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+    if (imgHeight <= pageHeight) {
+      // صفحة واحدة
+      doc.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+    } else {
+      // تقسيم على صفحات
+      let yPos = 0;
+      let heightLeft = imgHeight;
+      const pageHeightPx = (pageHeight * canvas.width) / pageWidth;
+
+      while (heightLeft > 0) {
+        const sourceY = (imgHeight - heightLeft) * (canvas.height / imgHeight);
+        const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+
+        // نعمل canvas جديد لكل صفحة
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sourceHeight;
+        const ctx = pageCanvas.getContext('2d');
+
+        ctx.drawImage(
+          canvas,
+          0, sourceY,
+          canvas.width, sourceHeight,
+          0, 0,
+          canvas.width, sourceHeight
+        );
+
+        const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+        const drawHeight = (sourceHeight * imgWidth) / canvas.width;
+
+        if (yPos > 0) doc.addPage();
+        doc.addImage(pageImgData, 'JPEG', 0, 0, imgWidth, drawHeight);
+
+        heightLeft -= pageHeightPx;
+        yPos++;
+      }
+    }
+
+    updateProgress(90, 'جارٍ الحفظ...');
+
+    // نحفظ
+    const student = attempt.profiles || {};
+    const exam = attempt.exams || {};
+    const safeName = (student.username || 'student').replace(/[^a-z0-9_]/gi, '_');
+    const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
+    doc.save(`${safeName}_${safeExam}_${Date.now()}.pdf`);
+
+    // نحدّث pdf_exported
+    await supabaseClient
+      .from('attempts')
+      .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
+      .eq('id', attempt.id);
+
+    updateProgress(100, 'تم ✅');
+
+    setTimeout(() => {
+      hideProgress();
+      Toast.success('تم التنزيل ✅', 'دلوقتي تقدر تمسح من القاعدة');
+      // نحدّث القائمة
+      const inCache = cache.pdf.find(x => x.id === attempt.id);
+      if (inCache) inCache.pdf_exported = true;
+      renderPdfList();
+      updateDeleteBtn();
+      loadStats();
+    }, 400);
+
+    // نفضي الـ template
+    template.innerHTML = '';
+
+  } catch (err) {
+    console.error(err);
+    hideProgress();
+    Toast.error('خطأ', err.message || 'فشل توليد الـ PDF');
+  }
+}
+
+/* ─── بناء HTML للـ PDF ─── */
+function buildPdfHtml(attempt, answers) {
+  const student = attempt.profiles || {};
+  const exam = attempt.exams || {};
+  const pct = attempt.total_marks ? Math.round((attempt.score / attempt.total_marks) * 100) : 0;
+  const passed = attempt.total_marks && attempt.score >= (exam.pass_marks || 0);
+  const time = calcDuration(attempt.started_at, attempt.submitted_at);
+
+  const examType = exam.kind === 'assignment' ? 'واجب' : 'امتحان';
+
+  // صفوف الجدول
+  const rows = answers.map((ans, i) => {
+    const q = ans.questions || {};
+    const isMcq = q.question_type === 'mcq';
+    const studentAns = isMcq
+      ? (ans.choices?.choice_text || 'لم يجب')
+      : (ans.essay_text || 'لم يجب');
+    const typeLabel = isMcq ? 'اختيار' : 'مقالي';
+    const awarded = ans.marks_awarded ?? '—';
+
+    return `
+      <tr>
+        <td class="c">${i + 1}</td>
+        <td class="q">${escapeHtml(q.question_text || '')}</td>
+        <td class="c">${typeLabel}</td>
+        <td>${escapeHtml(studentAns)}</td>
+        <td class="c">${awarded}</td>
+        <td class="c">${q.marks || 0}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="pdf-page" dir="rtl">
+      <!-- الهيدر -->
+      <div class="pdf-page__header">
+        <h1>منصة الأستاذ محمد عيسى التعليمية</h1>
+        <p>مدرس اللغة العربية</p>
+        <p style="font-size:10px;color:#888;margin-top:4px;">تقرير ${examType} رقمي</p>
+      </div>
+
+      <!-- بيانات الطالب -->
+      <div class="pdf-section">
+        <div class="pdf-section__title">بيانات الطالب</div>
+        <div class="pdf-grid">
+          <div class="pdf-grid__item"><b>الاسم:</b> <span>${escapeHtml(student.full_name || '—')}</span></div>
+          <div class="pdf-grid__item"><b>اسم المستخدم:</b> <span>${escapeHtml(student.username || '—')}</span></div>
+          <div class="pdf-grid__item"><b>الصف:</b> <span>${escapeHtml(student.grade || '—')}</span></div>
+          <div class="pdf-grid__item"><b>النوع:</b> <span>${escapeHtml(student.type || '—')}${student.branch ? ' - ' + escapeHtml(student.branch) : ''}</span></div>
+          <div class="pdf-grid__item"><b>هاتف الطالب:</b> <span>${escapeHtml(student.phone || '—')}</span></div>
+          <div class="pdf-grid__item"><b>هاتف ولي الأمر:</b> <span>${escapeHtml(student.parent_phone || '—')}</span></div>
+        </div>
+      </div>
+
+      <!-- بيانات الامتحان -->
+      <div class="pdf-section">
+        <div class="pdf-section__title">بيانات ${examType}</div>
+        <div class="pdf-grid">
+          <div class="pdf-grid__item"><b>العنوان:</b> <span>${escapeHtml(exam.title || '—')}</span></div>
+          <div class="pdf-grid__item"><b>المدة:</b> <span>${exam.duration_minutes || 0} دقيقة</span></div>
+          <div class="pdf-grid__item"><b>البداية:</b> <span>${formatDate(attempt.started_at)}</span></div>
+          <div class="pdf-grid__item"><b>التسليم:</b> <span>${formatDate(attempt.submitted_at)}</span></div>
+          <div class="pdf-grid__item"><b>الوقت المستغرق:</b> <span>${time}</span></div>
+        </div>
+      </div>
+
+      <!-- النتيجة -->
+      <div class="pdf-result">
+        <div class="pdf-result__item">
+          <b>${attempt.score ?? 0}</b>
+          <span>الدرجة</span>
+        </div>
+        <div class="pdf-result__item">
+          <b>${attempt.total_marks ?? 0}</b>
+          <span>الدرجة الكلية</span>
+        </div>
+        <div class="pdf-result__item">
+          <b>${pct}%</b>
+          <span>النسبة</span>
+        </div>
+        <div class="pdf-result__item">
+          <b>${passed ? '✓' : '✗'}</b>
+          <span>${passed ? 'ناجح' : 'راسب'}</span>
+        </div>
+      </div>
+
+      <!-- جدول الإجابات -->
+      <div class="pdf-section" style="background:#fff;border:0;padding:0;">
+        <div class="pdf-section__title">تفاصيل الإجابات</div>
+        <table class="pdf-table">
+          <thead>
+            <tr>
+              <th style="width:30px;">#</th>
+              <th>السؤال</th>
+              <th style="width:60px;">النوع</th>
+              <th>الإجابة</th>
+              <th style="width:60px;">الدرجة</th>
+              <th style="width:50px;">من</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="6" style="text-align:center;color:#888;">لا توجد إجابات</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- الفوتر -->
+      <div class="pdf-page__footer">
+        منصة الأستاذ محمد عيسى · ${new Date().toLocaleDateString('ar-EG')}
+      </div>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   تنزيل الكل
+   ═══════════════════════════════════════════════════════════════ */
+async function downloadAllPdf() {
+  if (!cache.pdf.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات'); return; }
+
+  // نأخذ اللي ما اتنزلش
+  const notExported = cache.pdf.filter(a => !a.pdf_exported);
+  const list = notExported.length ? notExported : cache.pdf;
+
+  const ok = await UI.confirm({
+    type: 'info',
+    title: 'تنزيل كل الملفات؟',
+    message: `سيتم تنزيل ${list.length} تقرير PDF. قد ياخد وقت.`,
+    confirmText: 'تنزيل',
+    cancelText: 'إلغاء'
+  });
+  if (!ok) return;
+
+  showProgress('جارٍ التحضير...', `0 / ${list.length}`);
+
+  let done = 0;
+  for (const attempt of list) {
+    try {
+      await exportSinglePdfWithoutDialog(attempt, done, list.length);
+      done++;
+      updateProgress(
+        (done / list.length) * 100,
+        `${done} / ${list.length}`
+      );
+    } catch (err) {
+      console.error('فشل:', attempt.id, err);
+    }
+  }
+
+  hideProgress();
+  Toast.success('خلص التنزيل ✅', `اتنزل ${done} ملف`);
+  loadPdfList();
+  loadStats();
+}
+
+async function exportSinglePdfWithoutDialog(attempt, done, total) {
+  // نفس exportSinglePdf بس من غير showProgress/hideProgress
+  const { data: answers, error } = await supabaseClient
+    .from('answers')
+    .select(`
+      id, selected_choice_id, essay_text, marks_awarded,
+      questions:question_id (question_text, question_type, marks, order_index),
+      choices:selected_choice_id (choice_text)
+    `)
+    .eq('attempt_id', attempt.id)
+    .order('answered_at', { ascending: true });
+
+  if (error) throw error;
+
+  const sortedAnswers = (answers || []).sort((a, b) => {
+    const ai = a.questions?.order_index ?? 0;
+    const bi = b.questions?.order_index ?? 0;
+    return ai - bi;
+  });
+
+  const html = buildPdfHtml(attempt, sortedAnswers);
+  const template = document.getElementById('pdfTemplate');
+  template.innerHTML = html;
+
+  const canvas = await html2canvas(template.firstElementChild, {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false
+  });
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const imgWidth = pageWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+  if (imgHeight <= pageHeight) {
+    doc.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+  } else {
+    let yPos = 0;
+    let heightLeft = imgHeight;
+    const pageHeightPx = (pageHeight * canvas.width) / pageWidth;
+
+    while (heightLeft > 0) {
+      const sourceY = (imgHeight - heightLeft) * (canvas.height / imgHeight);
+      const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sourceHeight;
+      const ctx = pageCanvas.getContext('2d');
+      ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+
+      const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+      const drawHeight = (sourceHeight * imgWidth) / canvas.width;
+
+      if (yPos > 0) doc.addPage();
+      doc.addImage(pageImgData, 'JPEG', 0, 0, imgWidth, drawHeight);
+
+      heightLeft -= pageHeightPx;
+      yPos++;
+    }
+  }
+
+  const student = attempt.profiles || {};
+  const exam = attempt.exams || {};
+  const safeName = (student.username || 'student').replace(/[^a-z0-9_]/gi, '_');
+  const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
+  doc.save(`${String(done + 1).padStart(3, '0')}_${safeName}_${safeExam}.pdf`);
+
+  // نحدّث
+  await supabaseClient
+    .from('attempts')
+    .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
+    .eq('id', attempt.id);
+
+  // نحدّث الكاش
+  const inCache = cache.pdf.find(x => x.id === attempt.id);
+  if (inCache) inCache.pdf_exported = true;
+
+  template.innerHTML = '';
+}
+
+/* ─────────────── Progress ─────────────── */
+function showProgress(title, text) {
+  const modal = document.getElementById('progressModal');
+  document.getElementById('progressTitle').textContent = title || 'جارٍ...';
+  document.getElementById('progressText').textContent = text || '';
+  document.getElementById('progressFill').style.width = '0%';
+  if (modal) modal.hidden = false;
+}
+
+function updateProgress(percent, text) {
+  const fill = document.getElementById('progressFill');
+  if (fill) fill.style.width = `${Math.min(percent, 100)}%`;
+  if (text) {
+    const textEl = document.getElementById('progressText');
+    if (textEl) textEl.textContent = text;
+  }
+}
+
+function hideProgress() {
+  const modal = document.getElementById('progressModal');
+  if (modal) modal.hidden = true;
+}
+
+function updateDeleteBtn() {
+  const btn = document.getElementById('deleteExportedBtn');
+  if (!btn) return;
+  const count = cache.pdf.filter(a => a.pdf_exported).length;
+  btn.disabled = count === 0;
+  btn.innerHTML = `<i class="fa-solid fa-trash"></i> مسح اللي اتنزل (${count})`;
+}
+
+async function deleteExported() {
+  const toDelete = cache.pdf.filter(a => a.pdf_exported);
+  if (!toDelete.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات اتنزلت'); return; }
+
+  const ok = await UI.confirm({
+    type: 'danger',
+    title: 'مسح كل اللي اتنزل؟',
+    message: `سيتم مسح ${toDelete.length} محاولة من قاعدة البيانات.`,
+    confirmText: `مسح (${toDelete.length})`,
+    cancelText: 'إلغاء'
+  });
+  if (!ok) return;
+
+  const ids = toDelete.map(a => a.id);
+  const { error } = await supabaseClient.from('attempts').delete().in('id', ids);
+
+  if (error) { Toast.error('خطأ', error.message); return; }
+
+  Toast.error('تم المسح', `اتمسحت ${ids.length} محاولة`);
+  loadPdfList();
+  loadStats();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Modal إنشاء امتحان
    ═══════════════════════════════════════════════════════════════ */
 function openExamModal(editId = null) {
   const modal = document.getElementById('examModal');
@@ -508,10 +1357,8 @@ function openExamModal(editId = null) {
   examModalState.maxQuestions = 15;
   examModalState.questions = [];
 
-  // reset
   document.getElementById('examModalTitle').textContent = editId ? 'تعديل' : 'إنشاء امتحان';
 
-  // لو بنعدّل → نجيب البيانات
   if (editId) {
     loadExamForEdit(editId);
   } else {
@@ -539,28 +1386,23 @@ function resetExamForm() {
   document.getElementById('examDuration').value = '60';
   document.getElementById('examPassMarks').value = '50';
 
-  // وقت الفتح = الآن
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   document.getElementById('examOpensAt').value = now.toISOString().slice(0, 16);
 
-  // وقت الإغلاق = بعد أسبوع
   const week = new Date();
   week.setDate(week.getDate() + 7);
   week.setMinutes(week.getMinutes() - week.getTimezoneOffset());
   document.getElementById('examClosesAt').value = week.toISOString().slice(0, 16);
 
-  // مسح الاختيارات
   $$('input[name="grade"]').forEach(i => i.checked = false);
   $$('input[name="type"]').forEach(i => i.checked = false);
   $$('input[name="branch"]').forEach(i => i.checked = false);
 
-  // tabs
   document.querySelector('input[name="examKind"][value="exam"]').checked = true;
   updateKindTabs();
   updateBranchesVisibility();
 
-  // مسح الأسئلة
   examModalState.questions = [];
   examModalState.maxQuestions = 15;
   document.getElementById('questionsMax').textContent = '15';
@@ -580,7 +1422,6 @@ function updateKindTabs() {
   document.getElementById('examModalTitle').textContent =
     (examModalState.editingId ? 'تعديل ' : 'إنشاء ') + (kind === 'exam' ? 'امتحان' : 'واجب');
 
-  // لو عدد الأسئلة أكبر من الحد الجديد، نقص
   if (examModalState.questions.length > examModalState.maxQuestions) {
     examModalState.questions = examModalState.questions.slice(0, examModalState.maxQuestions);
   }
@@ -624,11 +1465,8 @@ function renderQuestions() {
   }
 
   list.innerHTML = examModalState.questions.map((q, i) => questionItem(q, i)).join('');
-
-  // ربط الأحداث
   bindQuestionEvents();
 
-  // تحديث حالة زرار الإضافة
   const addBtn = document.getElementById('addQuestionBtn');
   if (addBtn) {
     addBtn.disabled = count >= examModalState.maxQuestions;
@@ -649,7 +1487,7 @@ function questionItem(q, index) {
       <div class="q-item__head">
         <div class="q-item__num">${index + 1}</div>
         <div class="q-type-tabs">
-          <label class="q-type-tab ${isMcq ? '' : ''}">
+          <label class="q-type-tab">
             <input type="radio" name="qtype_${index}" value="mcq" ${isMcq ? 'checked' : ''} data-qidx="${index}" data-qtype="mcq">
             <i class="fa-solid fa-list-ul"></i>
             MCQ
@@ -716,7 +1554,6 @@ function renderMcqChoices(q, index, letters) {
 function bindQuestionEvents() {
   const list = document.getElementById('questionsList');
 
-  // حذف سؤال
   $$('[data-del]', list).forEach(btn => {
     btn.addEventListener('click', async () => {
       const idx = parseInt(btn.dataset.del, 10);
@@ -733,7 +1570,6 @@ function bindQuestionEvents() {
     });
   });
 
-  // تغيير نوع السؤال
   $$('[data-qtype]', list).forEach(input => {
     input.addEventListener('change', () => {
       const idx = parseInt(input.dataset.qidx, 10);
@@ -742,7 +1578,6 @@ function bindQuestionEvents() {
       if (!q) return;
       q.question_type = type;
 
-      // لو MCQ ولسه مش عنده choices → نضيف 4
       if (type === 'mcq' && (!q.choices || q.choices.length !== 4)) {
         q.choices = [
           { choice_text: '', is_correct: false },
@@ -755,7 +1590,6 @@ function bindQuestionEvents() {
     });
   });
 
-  // نص السؤال
   $$('[data-field="text"]', list).forEach(el => {
     el.addEventListener('input', () => {
       const idx = parseInt(el.dataset.qidx, 10);
@@ -765,7 +1599,6 @@ function bindQuestionEvents() {
     });
   });
 
-  // الدرجة
   $$('[data-field="marks"]', list).forEach(el => {
     el.addEventListener('input', () => {
       const idx = parseInt(el.dataset.qidx, 10);
@@ -775,7 +1608,6 @@ function bindQuestionEvents() {
     });
   });
 
-  // نص الاختيار
   $$('[data-choice]', list).forEach(el => {
     el.addEventListener('input', () => {
       const idx = parseInt(el.dataset.choice, 10);
@@ -787,7 +1619,6 @@ function bindQuestionEvents() {
     });
   });
 
-  // الإجابة الصحيحة
   $$('[data-correct]', list).forEach(input => {
     input.addEventListener('change', () => {
       const idx = parseInt(input.dataset.correct, 10);
@@ -796,7 +1627,6 @@ function bindQuestionEvents() {
       if (q && q.choices) {
         q.choices.forEach((c, i) => c.is_correct = (i === ci));
       }
-      // تحديث الـ UI
       const item = input.closest('.q-item');
       $$('.q-choice', item).forEach((ch, i) => {
         ch.classList.toggle('is-correct', i === ci);
@@ -824,16 +1654,12 @@ function addQuestion() {
   });
 
   renderQuestions();
-
-  // scroll للأسفل
   const list = document.getElementById('questionsList');
   list?.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
-/* ─────────────── حفظ ─────────────── */
 async function saveExam(status = 'draft') {
   try {
-    // 1) جمع البيانات
     const title = document.getElementById('examTitle').value.trim();
     const description = document.getElementById('examDesc').value.trim();
     const duration = parseInt(document.getElementById('examDuration').value, 10);
@@ -846,7 +1672,6 @@ async function saveExam(status = 'draft') {
     const types = $$('input[name="type"]:checked').map(i => i.value);
     const branches = $$('input[name="branch"]:checked').map(i => i.value);
 
-    // 2) تحقق
     const errs = [];
     if (!title) errs.push('العنوان مطلوب');
     if (!grades.length) errs.push('اختر صف واحد على الأقل');
@@ -854,7 +1679,6 @@ async function saveExam(status = 'draft') {
     if (!duration || duration < 1) errs.push('المدة غير صحيحة');
     if (!closesAt) errs.push('وقت الإغلاق مطلوب');
 
-    // لو أزهر + ثانوي → لازم فرع
     const hasAzhar = types.includes('أزهر');
     const hasThanwy = grades.some(g => g.includes('ثانوي'));
     if (hasAzhar && hasThanwy && !branches.length) {
@@ -865,7 +1689,6 @@ async function saveExam(status = 'draft') {
       errs.push('لازم تضيف سؤال واحد على الأقل');
     }
 
-    // تحقق من كل سؤال
     for (let i = 0; i < examModalState.questions.length; i++) {
       const q = examModalState.questions[i];
       if (!q.question_text.trim()) {
@@ -890,15 +1713,10 @@ async function saveExam(status = 'draft') {
       return;
     }
 
-    // 3) حساب total_marks
     const totalMarks = examModalState.questions.reduce((s, q) => s + (q.marks || 0), 0);
-
-    // 4) تحويل التواريخ لـ ISO
     const opensISO = opensAt ? new Date(opensAt).toISOString() : new Date().toISOString();
     const closesISO = new Date(closesAt).toISOString();
 
-    // 5) بناء الـ payload (نحفظ الصف الأول + النوع الأول + الفرع الأول)
-    // (لأن الجداول مش بتدعم arrays في النسخة الحالية)
     const payload = {
       title,
       description,
@@ -915,31 +1733,18 @@ async function saveExam(status = 'draft') {
       created_by: currentUser.id
     };
 
-    // 6) حفظ أو تحديث
     let examId = examModalState.editingId;
 
     if (examId) {
-      // تحديث
-      const { error } = await supabaseClient
-        .from('exams')
-        .update(payload)
-        .eq('id', examId);
+      const { error } = await supabaseClient.from('exams').update(payload).eq('id', examId);
       if (error) throw error;
-
-      // مسح الأسئلة القديمة + إضافة الجديدة
       await supabaseClient.from('questions').delete().eq('exam_id', examId);
     } else {
-      // إنشاء
-      const { data, error } = await supabaseClient
-        .from('exams')
-        .insert(payload)
-        .select('id')
-        .single();
+      const { data, error } = await supabaseClient.from('exams').insert(payload).select('id').single();
       if (error) throw error;
       examId = data.id;
     }
 
-    // 7) حفظ الأسئلة + الاختيارات
     for (let i = 0; i < examModalState.questions.length; i++) {
       const q = examModalState.questions[i];
 
@@ -957,7 +1762,6 @@ async function saveExam(status = 'draft') {
 
       if (qErr) throw qErr;
 
-      // لو MCQ → احفظ الاختيارات
       if (q.question_type === 'mcq' && q.choices) {
         const choicesPayload = q.choices.map((c, ci) => ({
           question_id: qData.id,
@@ -965,13 +1769,11 @@ async function saveExam(status = 'draft') {
           is_correct: c.is_correct,
           order_index: ci
         }));
-
         const { error: cErr } = await supabaseClient.from('choices').insert(choicesPayload);
         if (cErr) throw cErr;
       }
     }
 
-    // 8) نجاح
     Toast.success(
       status === 'published' ? 'تم النشر ✅' : 'تم الحفظ ✅',
       `تم ${status === 'published' ? 'نشر' : 'حفظ'} "${title}"`
@@ -987,7 +1789,6 @@ async function saveExam(status = 'draft') {
   }
 }
 
-/* ─────────────── تحميل امتحان للتعديل ─────────────── */
 async function loadExamForEdit(examId) {
   try {
     const { data: exam, error } = await supabaseClient
@@ -1002,13 +1803,11 @@ async function loadExamForEdit(examId) {
       return;
     }
 
-    // 1) الأساسيات
     document.getElementById('examTitle').value = exam.title || '';
     document.getElementById('examDesc').value = exam.description || '';
     document.getElementById('examDuration').value = exam.duration_minutes || 60;
     document.getElementById('examPassMarks').value = exam.pass_marks || 50;
 
-    // التواريخ
     if (exam.opens_at) {
       const d = new Date(exam.opens_at);
       d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -1020,12 +1819,10 @@ async function loadExamForEdit(examId) {
       document.getElementById('examClosesAt').value = d.toISOString().slice(0, 16);
     }
 
-    // 2) الصف / النوع / الفرع (checkbox)
     $$('input[name="grade"]').forEach(i => i.checked = (i.value === exam.grade));
     $$('input[name="type"]').forEach(i => i.checked = (i.value === exam.type));
     $$('input[name="branch"]').forEach(i => i.checked = (i.value === exam.branch));
 
-    // 3) النوع (امتحان / واجب)
     const kind = exam.kind || 'exam';
     document.querySelector(`input[name="examKind"][value="${kind}"]`).checked = true;
     examModalState.kind = kind;
@@ -1038,7 +1835,6 @@ async function loadExamForEdit(examId) {
 
     updateBranchesVisibility();
 
-    // 4) الأسئلة
     const { data: questions } = await supabaseClient
       .from('questions')
       .select('*')
@@ -1070,7 +1866,6 @@ async function loadExamForEdit(examId) {
 
     renderQuestions();
 
-    // 5) تغيير العنوان
     document.getElementById('examModalTitle').textContent =
       'تعديل ' + (kind === 'exam' ? 'امتحان' : 'واجب');
 
@@ -1079,350 +1874,6 @@ async function loadExamForEdit(examId) {
     Toast.error('خطأ', 'حاول تاني');
     closeExamModal();
   }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   4. المحاولات
-   ═══════════════════════════════════════════════════════════════ */
-async function loadAttempts() {
-  const c = document.getElementById('attemptsContainer');
-  c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from('attempts')
-      .select(`
-        id, score, total_marks, status, started_at, submitted_at,
-        profiles:student_id (full_name, username, grade),
-        exams:exam_id (title, total_marks)
-      `)
-      .order('started_at', { ascending: false })
-      .limit(50);
-
-    if (error) {
-      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
-      return;
-    }
-
-    cache.attempts = data || [];
-    renderAttempts();
-
-  } catch (err) {
-    console.error(err);
-    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
-  }
-}
-
-function renderAttempts() {
-  const c = document.getElementById('attemptsContainer');
-  const filter = document.getElementById('filterAttempts')?.value || 'all';
-
-  let list = cache.attempts;
-  if (filter !== 'all') list = list.filter(a => a.status === filter);
-
-  if (!list.length) {
-    c.innerHTML = emptyState('fa-file-circle-xmark', 'مفيش محاولات', 'لسه محدش حل امتحانات');
-    return;
-  }
-
-  c.innerHTML = `<div class="cards-mobile">${list.map(attemptCard).join('')}</div>`;
-}
-
-function attemptCard(a) {
-  const student = a.profiles || {};
-  const exam = a.exams || {};
-  const statusMap = {
-    in_progress: ['warn', 'fa-hourglass-half', 'قيد الحل'],
-    submitted: ['info', 'fa-paper-plane', 'تم التسليم'],
-    graded: ['ok', 'fa-check-double', 'تم التصحيح'],
-    expired: ['err', 'fa-clock', 'منتهي']
-  };
-  const [cls, ic, label] = statusMap[a.status] || ['mut', 'fa-circle', a.status];
-
-  const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
-
-  return `
-    <div class="mcard">
-      <div class="mcard__top">
-        <h4>${escapeHtml(exam.title || 'امتحان محذوف')}</h4>
-        <span class="badge badge--${cls}"><i class="fa-solid ${ic}"></i> ${label}</span>
-      </div>
-      <div class="mcard__rows">
-        <div><b>الطالب:</b> ${escapeHtml(student.full_name || '—')}</div>
-        <div><b>الصف:</b> ${escapeHtml(student.grade || '—')}</div>
-        <div><b>النتيجة:</b> ${a.score ?? 0}/${a.total_marks ?? 0} (${pct}%)</div>
-        <div><b>البداية:</b> ${formatDate(a.started_at)}</div>
-        ${a.submitted_at ? `<div><b>التسليم:</b> ${formatDate(a.submitted_at)}</div>` : ''}
-      </div>
-    </div>
-  `;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   5. PDF
-   ═══════════════════════════════════════════════════════════════ */
-async function loadPdfList() {
-  const c = document.getElementById('pdfContainer');
-  c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from('attempts')
-      .select(`
-        id, score, total_marks, status, submitted_at, pdf_exported,
-        profiles:student_id (full_name, username, grade, phone, parent_phone),
-        exams:exam_id (title, total_marks)
-      `)
-      .in('status', ['submitted', 'graded'])
-      .order('submitted_at', { ascending: false })
-      .limit(50);
-
-    if (error) {
-      c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message);
-      return;
-    }
-
-    cache.pdf = data || [];
-    renderPdfList();
-    updateDeleteBtn();
-
-  } catch (err) {
-    console.error(err);
-    c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', 'حاول تحدّث الصفحة');
-  }
-}
-
-function renderPdfList() {
-  const c = document.getElementById('pdfContainer');
-
-  if (!cache.pdf.length) {
-    c.innerHTML = emptyState('fa-file-pdf', 'مفيش محاولات جاهزة', 'لما طالب يسلّم امتحان هيظهر هنا');
-    return;
-  }
-
-  c.innerHTML = `<div class="cards-mobile">${cache.pdf.map(pdfCard).join('')}</div>`;
-  bindPdfActions();
-}
-
-function pdfCard(a) {
-  const student = a.profiles || {};
-  const exam = a.exams || {};
-  const done = a.pdf_exported === true;
-  const pct = a.total_marks ? Math.round((a.score / a.total_marks) * 100) : 0;
-
-  const deleteBtn = done
-    ? `<button class="btn btn--danger btn--sm" data-action="delete" data-id="${a.id}">
-        <i class="fa-solid fa-trash"></i> مسح من القاعدة
-      </button>`
-    : `<button class="btn btn--line btn--sm" disabled>
-        <i class="fa-solid fa-lock"></i> لازم تنزّل الأول
-      </button>`;
-
-  return `
-    <div class="mcard" data-id="${a.id}">
-      <div class="mcard__top">
-        <h4>${escapeHtml(student.full_name || '—')}</h4>
-        ${done
-          ? '<span class="badge badge--ok"><i class="fa-solid fa-check"></i> اتنزل</span>'
-          : '<span class="badge badge--warn"><i class="fa-solid fa-download"></i> لسه ما اتنزلش</span>'}
-      </div>
-      <div class="mcard__rows">
-        <div><b>الامتحان:</b> ${escapeHtml(exam.title || '—')}</div>
-        <div><b>الصف:</b> ${escapeHtml(student.grade || '—')}</div>
-        <div><b>النتيجة:</b> ${a.score ?? 0}/${a.total_marks ?? 0} (${pct}%)</div>
-        <div><b>التسليم:</b> ${formatDate(a.submitted_at)}</div>
-      </div>
-      <div class="mcard__acts">
-        <button class="btn btn--gold btn--sm" data-action="download" data-id="${a.id}">
-          <i class="fa-solid fa-file-pdf"></i> تنزيل PDF
-        </button>
-        ${deleteBtn}
-      </div>
-    </div>
-  `;
-}
-
-function bindPdfActions() {
-  $$('#pdfContainer [data-action]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      const action = btn.dataset.action;
-      const attempt = cache.pdf.find(a => a.id === id);
-      if (!attempt) return;
-
-      if (action === 'download') {
-        await exportAttemptPdf(attempt);
-      } else if (action === 'delete') {
-        const ok = await UI.confirm({
-          type: 'warn',
-          title: 'مسح من قاعدة البيانات؟',
-          message: 'الـ PDF محفوظ عندك، بس المحاولة هتتمسح من السيرفر.',
-          confirmText: 'مسح',
-          cancelText: 'إلغاء'
-        });
-        if (!ok) return;
-
-        const { error } = await supabaseClient.from('attempts').delete().eq('id', id);
-        if (error) { Toast.error('خطأ', error.message); return; }
-        Toast.error('تم المسح', 'اتمسحت من قاعدة البيانات');
-        loadPdfList();
-        loadStats();
-      }
-    });
-  });
-}
-
-/* ─────────────── توليد PDF ─────────────── */
-async function exportAttemptPdf(attempt) {
-  const { jsPDF } = window.jspdf;
-
-  const { data: answers, error } = await supabaseClient
-    .from('answers')
-    .select(`
-      id, selected_choice_id, essay_text, marks_awarded,
-      questions:question_id (question_text, question_type, marks),
-      choices:selected_choice_id (choice_text)
-    `)
-    .eq('attempt_id', attempt.id)
-    .order('answered_at', { ascending: true });
-
-  if (error) { Toast.error('خطأ', error.message); return; }
-
-  const student = attempt.profiles || {};
-  const exam = attempt.exams || {};
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  doc.setFont('helvetica');
-
-  doc.setFontSize(18);
-  doc.text('Exam Answers Report', 105, 20, { align: 'center' });
-
-  doc.setFontSize(11);
-  doc.text(`Student: ${student.full_name || '-'}`, 15, 35);
-  doc.text(`Username: ${student.username || '-'}`, 15, 42);
-  doc.text(`Grade: ${student.grade || '-'}`, 15, 49);
-  doc.text(`Student Phone: ${student.phone || '-'}`, 15, 56);
-  doc.text(`Parent Phone: ${student.parent_phone || '-'}`, 15, 63);
-
-  doc.text(`Exam: ${exam.title || '-'}`, 15, 75);
-  doc.text(`Score: ${attempt.score ?? 0} / ${attempt.total_marks ?? 0}`, 15, 82);
-  doc.text(`Submitted: ${formatDate(attempt.submitted_at)}`, 15, 89);
-
-  const rows = (answers || []).map((ans, i) => {
-    const q = ans.questions || {};
-    const isMcq = q.question_type === 'mcq';
-    const studentAns = isMcq ? (ans.choices?.choice_text || '-') : (ans.essay_text || '-');
-    return [
-      i + 1,
-      q.question_text || '-',
-      isMcq ? 'MCQ' : 'Essay',
-      studentAns,
-      ans.marks_awarded ?? '-',
-      q.marks ?? '-'
-    ];
-  });
-
-  doc.autoTable({
-    startY: 99,
-    head: [['#', 'Question', 'Type', 'Answer', 'Awarded', 'Max']],
-    body: rows,
-    styles: { fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: [230, 184, 0], textColor: [10, 10, 10], fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [245, 245, 245] },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 60 },
-      2: { cellWidth: 18, halign: 'center' },
-      3: { cellWidth: 60 },
-      4: { cellWidth: 18, halign: 'center' },
-      5: { cellWidth: 18, halign: 'center' }
-    }
-  });
-
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.text(
-      `Manassa Al-Ustadh Mohamed Eissa | Page ${i} / ${pageCount}`,
-      105, 290, { align: 'center' }
-    );
-  }
-
-  const safeName = (student.username || 'student').replace(/[^a-z0-9_]/gi, '_');
-  const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
-  doc.save(`${safeName}_${safeExam}_${Date.now()}.pdf`);
-
-  const { error: upErr } = await supabaseClient
-    .from('attempts')
-    .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
-    .eq('id', attempt.id);
-
-  if (upErr) Toast.warn('تم التنزيل بس', 'فشل تحديث السجل');
-  else Toast.success('تم التنزيل ✅', 'دلوقتي تقدر تمسح من القاعدة');
-
-  loadPdfList();
-  loadStats();
-}
-
-async function downloadAllPdf() {
-  if (!cache.pdf.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات'); return; }
-
-  const notExported = cache.pdf.filter(a => !a.pdf_exported);
-  const list = notExported.length ? notExported : cache.pdf;
-
-  const ok = await UI.confirm({
-    type: 'info',
-    title: 'تنزيل كل الملفات؟',
-    message: `سيتم تنزيل ${list.length} ملف PDF. قد ياخد وقت.`,
-    confirmText: 'تنزيل',
-    cancelText: 'إلغاء'
-  });
-  if (!ok) return;
-
-  Toast.info('جارٍ التنزيل', `عدد الملفات: ${list.length}`);
-
-  for (const attempt of list) {
-    try {
-      await exportAttemptPdf(attempt);
-      await new Promise(r => setTimeout(r, 800));
-    } catch (err) {
-      console.error('فشل تنزيل:', attempt.id, err);
-    }
-  }
-
-  Toast.success('خلص التنزيل', `${list.length} ملف اتنزلوا`);
-}
-
-function updateDeleteBtn() {
-  const btn = document.getElementById('deleteExportedBtn');
-  if (!btn) return;
-  const count = cache.pdf.filter(a => a.pdf_exported).length;
-  btn.disabled = count === 0;
-  btn.innerHTML = `<i class="fa-solid fa-trash"></i> مسح اللي اتنزل (${count})`;
-}
-
-async function deleteExported() {
-  const toDelete = cache.pdf.filter(a => a.pdf_exported);
-  if (!toDelete.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات اتنزلت'); return; }
-
-  const ok = await UI.confirm({
-    type: 'danger',
-    title: 'مسح كل اللي اتنزل؟',
-    message: `سيتم مسح ${toDelete.length} محاولة من قاعدة البيانات.`,
-    confirmText: `مسح (${toDelete.length})`,
-    cancelText: 'إلغاء'
-  });
-  if (!ok) return;
-
-  const ids = toDelete.map(a => a.id);
-  const { error } = await supabaseClient.from('attempts').delete().in('id', ids);
-
-  if (error) { Toast.error('خطأ', error.message); return; }
-
-  Toast.error('تم المسح', `اتمسحت ${ids.length} محاولة`);
-  loadPdfList();
-  loadStats();
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1445,6 +1896,23 @@ function formatDate(iso) {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
+}
+
+function calcDuration(startISO, endISO) {
+  if (!startISO || !endISO) return '—';
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  const diffMs = end - start;
+  if (diffMs < 0) return '—';
+
+  const totalSec = Math.floor(diffMs / 1000);
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+
+  if (hours > 0) return `${hours} س ${mins} د`;
+  if (mins > 0) return `${mins} د ${secs} ث`;
+  return `${secs} ث`;
 }
 
 function emptyState(icon, title, msg) {
@@ -1520,26 +1988,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('searchStudents')?.addEventListener('input', renderStudents);
   document.getElementById('filterGrade')?.addEventListener('change', renderStudents);
   document.getElementById('filterAttempts')?.addEventListener('change', renderAttempts);
+  document.getElementById('searchAttempts')?.addEventListener('input', renderAttempts);
+  document.getElementById('searchPdf')?.addEventListener('input', renderPdfList);
 
   /* ─── PDF ─── */
   document.getElementById('downloadAllPdfBtn')?.addEventListener('click', downloadAllPdf);
   document.getElementById('deleteExportedBtn')?.addEventListener('click', deleteExported);
 
   /* ─── إنشاء امتحان ─── */
-  document.getElementById('newExamBtn')?.addEventListener('click', () => {
-    openExamModal();
-  });
+  document.getElementById('newExamBtn')?.addEventListener('click', () => openExamModal());
 
-  /* ─── Modal أحداث ─── */
+  /* ─── Modal الامتحان ─── */
   document.getElementById('closeExamModal')?.addEventListener('click', closeExamModal);
   document.getElementById('cancelExamBtn')?.addEventListener('click', closeExamModal);
-
-  // الإغلاق بـ ESC أو backdrop
   document.getElementById('examModal')?.addEventListener('click', (e) => {
     if (e.target.classList.contains('modal__backdrop')) closeExamModal();
   });
 
-  // tabs الامتحان/الواجب
   $$('.exam-kind-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       const kind = tab.dataset.kind;
@@ -1548,20 +2013,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // الصف / النوع (لتحديث الفرع)
-  $$('input[name="grade"]').forEach(i => {
-    i.addEventListener('change', updateBranchesVisibility);
-  });
-  $$('input[name="type"]').forEach(i => {
-    i.addEventListener('change', updateBranchesVisibility);
-  });
+  $$('input[name="grade"]').forEach(i => i.addEventListener('change', updateBranchesVisibility));
+  $$('input[name="type"]').forEach(i => i.addEventListener('change', updateBranchesVisibility));
 
-  // إضافة سؤال
   document.getElementById('addQuestionBtn')?.addEventListener('click', addQuestion);
-
-  // حفظ
   document.getElementById('saveDraftBtn')?.addEventListener('click', () => saveExam('draft'));
   document.getElementById('publishExamBtn')?.addEventListener('click', () => saveExam('published'));
+
+  /* ─── Modal تفاصيل الطالب ─── */
+  document.getElementById('closeDetailsModal')?.addEventListener('click', closeStudentDetails);
+  document.getElementById('closeDetailsBtn')?.addEventListener('click', closeStudentDetails);
+  document.getElementById('studentDetailsModal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal__backdrop')) closeStudentDetails();
+  });
+
+  document.getElementById('downloadStudentPdfBtn')?.addEventListener('click', async () => {
+    if (!currentDetailsAttempt) return;
+    // نقفل الـ modal الأول
+    const att = currentDetailsAttempt;
+    closeStudentDetails();
+    // بعدين ننزّل
+    await exportSinglePdf(att);
+  });
 
   /* ─── تحميل أولي ─── */
   loadStats();
