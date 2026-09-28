@@ -1241,6 +1241,22 @@ async function exportSinglePdfWithoutDialog(attempt, done, total) {
   template.innerHTML = html;
 
   const canvas = await html2canvas(template.firstElementChild, {
+  scale: 2,
+  backgroundColor: '#ffffff',
+  useCORS: true,
+  logging: false,
+  allowTaint: true,
+  onclone: (clonedDoc) => {
+    // نظهر الـ template في الـ clone
+    const clonedTemplate = clonedDoc.getElementById('pdfTemplate');
+    if (clonedTemplate) {
+      clonedTemplate.style.opacity = '1';
+      clonedTemplate.style.zIndex = '9999';
+      clonedTemplate.style.left = '0';
+      clonedTemplate.style.position = 'relative';
+    }
+  }
+});
     scale: 2,
     backgroundColor: '#ffffff',
     useCORS: true,
