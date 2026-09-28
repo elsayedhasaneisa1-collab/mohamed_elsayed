@@ -1,10 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════
-   admin.js — لوحة التحكم
-   منصة الأستاذ محمد عيسى
-   الأدمن + المدرس: نفس الصلاحيات الكاملة
-   نظام تصحيح المقالي مدمج
-   ═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
 let currentUser = null;
@@ -205,7 +198,7 @@ function bindPendingActions() {
           btn.disabled = true;
           btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
 
-          const { error } = await supabaseClient.from('profiles').delete().eq('id', id);
+          const { error } = await supabaseClient.rpc('delete_user_completely', { p_user_id: id });
           if (error) throw error;
           Toast.warn('تم الرفض', `تم حذف حساب ${name}`);
         }
@@ -338,7 +331,7 @@ function bindStudentActions() {
         });
         if (!ok) return;
 
-        const { error } = await supabaseClient.from('profiles').delete().eq('id', id);
+        const { error } = await supabaseClient.rpc('delete_user_completely', { p_user_id: id });
         if (error) { Toast.error('خطأ', error.message); return; }
         Toast.error('تم الحذف', `تم حذف ${name}`);
         card.remove();
