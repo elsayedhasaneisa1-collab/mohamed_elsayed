@@ -1,3 +1,9 @@
+/* ═══════════════════════════════════════════════════════════════
+   course.js — صفحة الكورس
+   منصة الأستاذ محمد عيسى
+   مشغل YouTube مخصص + حماية قوية
+   ═══════════════════════════════════════════════════════════════ */
+
 'use strict';
 
 let currentUser = null;
@@ -16,7 +22,9 @@ let isMuted = false;
 let currentPlayingItem = null;
 let progressInterval = null;
 let watermarkTimer = null;
+let controlsTimer = null;
 let isSeeking = false;
+let blackoutActive = false;
 
 /* ═══════════════════════════════════════════════════════════════
    التهيئة
@@ -48,7 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
    ═══════════════════════════════════════════════════════════════ */
 async function loadCourse(courseId) {
   try {
-    // 1) نجيب الكورس
     const { data: course, error: courseErr } = await supabaseClient
       .from('courses')
       .select('*')
@@ -64,7 +71,6 @@ async function loadCourse(courseId) {
 
     currentCourse = course;
 
-    // 2) نتحقق من الاشتراك
     const { data: enrollment } = await supabaseClient
       .from('enrollments')
       .select('*')
@@ -81,7 +87,6 @@ async function loadCourse(courseId) {
 
     currentEnrollment = enrollment;
 
-    // 3) نجيب الفولدرات
     const { data: foldersData, error: fErr } = await supabaseClient
       .from('folders')
       .select('*')
@@ -92,7 +97,6 @@ async function loadCourse(courseId) {
 
     folders = foldersData || [];
 
-    // 4) نجيب العناصر
     if (folders.length) {
       const folderIds = folders.map(f => f.id);
       const { data: itemsData } = await supabaseClient
@@ -107,7 +111,6 @@ async function loadCourse(courseId) {
         folderItemsMap[it.folder_id].push(it);
       });
 
-      // 5) نجيب تقدم الطالب
       const { data: progressData } = await supabaseClient
         .from('lesson_progress')
         .select('folder_item_id, is_completed')
@@ -117,7 +120,6 @@ async function loadCourse(courseId) {
       completedItems = new Set((progressData || []).map(p => p.folder_item_id));
     }
 
-    // 6) نرندر
     renderCourse();
 
     document.getElementById('courseLoading').hidden = true;
@@ -151,14 +153,12 @@ function renderCourse() {
   const totalItems = Object.values(folderItemsMap).reduce((s, arr) => s + arr.length, 0);
   document.getElementById('courseHeroItems').textContent = totalItems;
 
-  // Progress
   const completedCount = completedItems.size;
   const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
   document.getElementById('courseProgressPct').textContent = `${pct}%`;
   document.getElementById('courseProgressFill').style.width = `${pct}%`;
   document.getElementById('courseProgressText').textContent = `${completedCount} / ${totalItems} درس`;
 
-  // الفولدرات
   const list = document.getElementById('foldersList');
   const empty = document.getElementById('courseEmpty');
 
@@ -297,20 +297,18 @@ function openVideoPlayer(item) {
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
 
-  // نرجع كل حاجة للحالة الافتراضية
   resetPlayerUI();
-
-  // نحمّل الفيديو
   loadYouTubePlayer(item.youtube_id);
 
-  // نبدأ watermark
   startVideoWatermark();
+  showControlsTemporarily();
 }
 
 function resetPlayerUI() {
   isPlaying = false;
   isMuted = false;
   ytReady = false;
+  blackoutActive = false;
 
   const bigPlay = document.getElementById('videoBigPlay');
   if (bigPlay) bigPlay.hidden = false;
@@ -320,6 +318,9 @@ function resetPlayerUI() {
 
   const muteBtn = document.getElementById('videoMuteBtn');
   if (muteBtn) muteBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+
+  const blackout = document.getElementById('playerBlackout');
+  if (blackout) blackout.hidden = true;
 
   const progressFill = document.getElementById('videoProgressFill');
   const progressThumb = document.getElementById('videoProgressThumb');
@@ -354,6 +355,7 @@ function createYTPlayer(videoId, container) {
 
   const playerDiv = document.createElement('div');
   playerDiv.id = 'ytPlayer';
+  playerDiv.style.cssText = 'width:100%;height:100%;';
   container.appendChild(playerDiv);
 
   ytPlayer = new YT.Player('ytPlayer', {
@@ -361,15 +363,15 @@ function createYTPlayer(videoId, container) {
     width: '100%',
     videoId: videoId,
     playerVars: {
-      autoplay: 0,
-      controls: 0,        // ❌ نخفي أزرار YouTube
+      autoplay: 1,
+      controls: 0,
       modestbranding: 1,
       rel: 0,
       showinfo: 0,
       iv_load_policy: 3,
-      fs: 0,              // ❌ نخفي Fullscreen
+      fs: 0,
       playsinline: 1,
-      disablekb: 1,       // ❌ نمنع الكيبورد
+      disablekb: 1,
       cc_load_policy: 0,
       origin: window.location.origin
     },
@@ -377,6 +379,7 @@ function createYTPlayer(videoId, container) {
       onReady: (e) => {
         ytReady = true;
         updateTotalTime(e.target.getDuration());
+        e.target.playVideo();
       },
       onStateChange: (e) => {
         handlePlayerStateChange(e.data);
@@ -390,24 +393,24 @@ function createYTPlayer(videoId, container) {
 }
 
 function handlePlayerStateChange(state) {
-  // 1 = playing, 2 = paused, 0 = ended, 3 = buffering
-
   if (state === 1) {
     isPlaying = true;
     updatePlayBtn(true);
     hideBigPlay();
     startProgressTracker();
+    showControlsTemporarily();
   } else if (state === 2) {
     isPlaying = false;
     updatePlayBtn(false);
+    showControls();
     stopProgressTracker();
   } else if (state === 0) {
     isPlaying = false;
     updatePlayBtn(false);
     stopProgressTracker();
     showBigPlay();
+    showControls();
 
-    // نعلّمه كمكتمل
     if (currentPlayingItem) {
       markItemCompleted(currentPlayingItem.id);
       Toast.success('تم ✅', 'تم مشاهدة الدرس');
@@ -433,10 +436,30 @@ function hideBigPlay() {
   if (bigPlay) bigPlay.hidden = true;
 }
 
+/* ─── إظهار / إخفاء الأزرار ─── */
+function showControls() {
+  const controls = document.getElementById('playerControls');
+  if (controls) controls.classList.add('is-visible');
+
+  if (controlsTimer) clearTimeout(controlsTimer);
+
+  if (isPlaying) {
+    controlsTimer = setTimeout(() => hideControls(), 3000);
+  }
+}
+
+function showControlsTemporarily() {
+  showControls();
+}
+
+function hideControls() {
+  const controls = document.getElementById('playerControls');
+  if (controls) controls.classList.remove('is-visible');
+}
+
 /* ─── أزرار التحكم ─── */
 function togglePlay() {
-  if (!ytPlayer || !ytReady) return;
-
+  if (!ytPlayer || !ytReady || blackoutActive) return;
   if (isPlaying) {
     ytPlayer.pauseVideo();
   } else {
@@ -445,21 +468,22 @@ function togglePlay() {
 }
 
 function seekBackward() {
-  if (!ytPlayer || !ytReady) return;
+  if (!ytPlayer || !ytReady || blackoutActive) return;
   const current = ytPlayer.getCurrentTime() || 0;
   ytPlayer.seekTo(Math.max(0, current - 10), true);
+  showControlsTemporarily();
 }
 
 function seekForward() {
-  if (!ytPlayer || !ytReady) return;
+  if (!ytPlayer || !ytReady || blackoutActive) return;
   const current = ytPlayer.getCurrentTime() || 0;
   const total = ytPlayer.getDuration() || 0;
   ytPlayer.seekTo(Math.min(total, current + 10), true);
+  showControlsTemporarily();
 }
 
 function toggleMute() {
   if (!ytPlayer || !ytReady) return;
-
   if (isMuted) {
     ytPlayer.unMute();
     isMuted = false;
@@ -467,7 +491,6 @@ function toggleMute() {
     ytPlayer.mute();
     isMuted = true;
   }
-
   updateMuteBtn();
 }
 
@@ -485,20 +508,11 @@ function toggleFullscreen() {
   if (!box) return;
 
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    if (box.requestFullscreen) {
-      box.requestFullscreen();
-    } else if (box.webkitRequestFullscreen) {
-      box.webkitRequestFullscreen();
-    } else if (box.webkitEnterFullscreen) {
-      // للـ iOS Safari
-      box.webkitEnterFullscreen();
-    }
+    if (box.requestFullscreen) box.requestFullscreen();
+    else if (box.webkitRequestFullscreen) box.webkitRequestFullscreen();
   } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    }
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   }
 }
 
@@ -542,13 +556,17 @@ function updateTotalTime(seconds) {
 
 function formatTime(sec) {
   sec = Math.floor(sec || 0);
-  const m = Math.floor(sec / 60);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 function seekToPercent(pct) {
-  if (!ytPlayer || !ytReady) return;
+  if (!ytPlayer || !ytReady || blackoutActive) return;
   const total = ytPlayer.getDuration() || 0;
   if (!total) return;
   ytPlayer.seekTo((pct / 100) * total, true);
@@ -558,8 +576,8 @@ function seekToPercent(pct) {
    Watermark
    ═══════════════════════════════════════════════════════════════ */
 function startVideoWatermark() {
-  const wm = document.getElementById('videoWatermark');
-  const stage = document.querySelector('.video-player__stage');
+  const wm = document.getElementById('playerWatermark');
+  const stage = document.querySelector('.player-stage');
   if (!wm || !stage) return;
 
   const span = wm.querySelector('span');
@@ -574,7 +592,7 @@ function startVideoWatermark() {
 
     wm.style.left = x + 'px';
     wm.style.top = y + 'px';
-    wm.style.opacity = (Math.random() * 0.25 + 0.6).toFixed(2);
+    wm.style.opacity = (Math.random() * 0.25 + 0.65).toFixed(2);
   }
 
   update();
@@ -586,6 +604,133 @@ function stopVideoWatermark() {
     clearInterval(watermarkTimer);
     watermarkTimer = null;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🛡️ الحماية
+   ═══════════════════════════════════════════════════════════════ */
+function setupProtection() {
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
+  document.addEventListener('copy', e => {
+    if (currentPlayingItem) e.preventDefault();
+  });
+
+  document.addEventListener('cut', e => e.preventDefault());
+
+  document.addEventListener('paste', e => {
+    if (currentPlayingItem) e.preventDefault();
+  });
+
+  document.addEventListener('keydown', handleKeyDown);
+
+  document.addEventListener('dragstart', e => e.preventDefault());
+
+  document.addEventListener('selectstart', e => {
+    if (currentPlayingItem) e.preventDefault();
+  });
+}
+
+function handleKeyDown(e) {
+  // Print Screen
+  if (e.key === 'PrintScreen' || e.keyCode === 44) {
+    e.preventDefault();
+    if (currentPlayingItem) triggerBlackout('محاولة تصوير');
+    return;
+  }
+
+  // Windows + Shift + S
+  if (e.metaKey && e.shiftKey && e.key.toUpperCase() === 'S') {
+    e.preventDefault();
+    if (currentPlayingItem) triggerBlackout('محاولة تصوير');
+    return;
+  }
+
+  // F12
+  if (e.key === 'F12') {
+    if (currentPlayingItem) e.preventDefault();
+    return;
+  }
+
+  // Ctrl + Shift + I / J / C
+  if (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) {
+    if (currentPlayingItem) e.preventDefault();
+    return;
+  }
+
+  // Ctrl + U / S / P
+  if (e.ctrlKey && ['U','S','P'].includes(e.key.toUpperCase())) {
+    if (currentPlayingItem) e.preventDefault();
+    return;
+  }
+
+  // Space
+  if (e.code === 'Space' && currentPlayingItem) {
+    e.preventDefault();
+    togglePlay();
+    return;
+  }
+
+  // Escape
+  if (e.key === 'Escape') {
+    const vModal = document.getElementById('videoPlayerModal');
+    const lModal = document.getElementById('linkModal');
+    if (vModal && !vModal.hidden) closeVideoPlayer();
+    if (lModal && !lModal.hidden) closeLinkModal();
+  }
+}
+
+function triggerBlackout(reason) {
+  if (blackoutActive) return;
+  blackoutActive = true;
+
+  if (ytPlayer && ytReady) {
+    try { ytPlayer.pauseVideo(); } catch (e) {}
+  }
+
+  const blackout = document.getElementById('playerBlackout');
+  if (blackout) blackout.hidden = false;
+
+  Toast.warn('⚠️ تحذير', 'ممنوع تصوير المحتوى');
+
+  setTimeout(() => {
+    const el = document.getElementById('playerBlackout');
+    if (el) el.hidden = true;
+    blackoutActive = false;
+  }, 2500);
+}
+
+/* ─── مراقبة التركيز ─── */
+function handleVisibilityChange() {
+  if (document.hidden && currentPlayingItem) {
+    if (ytPlayer && ytReady) {
+      try { ytPlayer.pauseVideo(); } catch (e) {}
+    }
+    showBlurWarning('خروج من الشاشة');
+  }
+}
+
+function handleBlur() {
+  if (currentPlayingItem && !blackoutActive) {
+    if (ytPlayer && ytReady) {
+      try { ytPlayer.pauseVideo(); } catch (e) {}
+    }
+    showBlurWarning('فقدان التركيز');
+  }
+}
+
+function showBlurWarning(reason) {
+  const warning = document.getElementById('cheatWarning');
+  const msg = document.getElementById('cheatMsg');
+  if (!warning) return;
+
+  if (msg) msg.textContent = reason || 'تم رصد خروجك من الشاشة';
+  warning.hidden = false;
+}
+
+function hideBlurWarning() {
+  const warning = document.getElementById('cheatWarning');
+  if (warning) warning.hidden = true;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -608,7 +753,11 @@ function closeVideoPlayer() {
   stopProgressTracker();
   stopVideoWatermark();
 
-  // لو في fullscreen، نطلع
+  if (controlsTimer) {
+    clearTimeout(controlsTimer);
+    controlsTimer = null;
+  }
+
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
   }
@@ -629,9 +778,7 @@ function openLinkModal(item) {
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
 
-  setTimeout(() => {
-    markItemCompleted(item.id);
-  }, 1000);
+  setTimeout(() => markItemCompleted(item.id), 1000);
 }
 
 function closeLinkModal() {
@@ -673,14 +820,14 @@ async function markItemCompleted(itemId) {
     }
 
     completedItems.add(itemId);
-    updateProgressUI_Section();
+    updateProgressSection();
 
   } catch (err) {
     console.error('Mark completed error:', err);
   }
 }
 
-function updateProgressUI_Section() {
+function updateProgressSection() {
   const totalItems = Object.values(folderItemsMap).reduce((s, arr) => s + arr.length, 0);
   const completedCount = completedItems.size;
   const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
@@ -725,6 +872,34 @@ function setupEventListeners() {
   document.getElementById('videoMuteBtn')?.addEventListener('click', toggleMute);
   document.getElementById('videoFullscreenBtn')?.addEventListener('click', toggleFullscreen);
 
+  // الشيلد (منع اللمس)
+  const shield = document.getElementById('playerShield');
+  const stage = document.querySelector('.player-stage');
+
+  if (shield) {
+    shield.addEventListener('click', (e) => {
+      // لو الفيديو واقف
+      if (!isPlaying) {
+        togglePlay();
+        return;
+      }
+
+      // لو شغال → نلمس على يمين/يسار
+      const rect = stage.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const half = rect.width / 2;
+
+      // RTL: يمين الفيديو = أول الفيديو (رجوع)
+      if (x > half) {
+        seekBackward();
+      } else {
+        seekForward();
+      }
+
+      showControlsTemporarily();
+    });
+  }
+
   // شريط التقدم — النقر والسحب
   const progressBar = document.getElementById('videoProgressBar');
   if (progressBar) {
@@ -733,7 +908,6 @@ function setupEventListeners() {
     const getPct = (e) => {
       const rect = progressBar.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      // RTL: من اليمين للشمال
       const pct = ((rect.right - clientX) / rect.width) * 100;
       return Math.max(0, Math.min(100, pct));
     };
@@ -746,6 +920,7 @@ function setupEventListeners() {
       const thumb = document.getElementById('videoProgressThumb');
       if (fill) fill.style.width = `${pct}%`;
       if (thumb) thumb.style.insetInlineStart = `${pct}%`;
+      showControlsTemporarily();
     };
 
     const onMove = (e) => {
@@ -788,21 +963,17 @@ function setupEventListeners() {
     window.location.reload();
   });
 
-  // ESC
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      const videoModal = document.getElementById('videoPlayerModal');
-      const linkModal = document.getElementById('linkModal');
-      if (videoModal && !videoModal.hidden) closeVideoPlayer();
-      if (linkModal && !linkModal.hidden) closeLinkModal();
-    }
-
-    // Space = Play/Pause
-    if (e.code === 'Space' && currentPlayingItem) {
-      e.preventDefault();
-      togglePlay();
+  // التحذير — زر المتابعة
+  document.getElementById('resumeBtn')?.addEventListener('click', () => {
+    hideBlurWarning();
+    if (ytPlayer && ytReady) {
+      try { ytPlayer.playVideo(); } catch (e) {}
     }
   });
+
+  // مراقبة التركيز
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('blur', handleBlur);
 
   // Fullscreen change
   document.addEventListener('fullscreenchange', () => {
@@ -813,6 +984,9 @@ function setupEventListeners() {
         : '<i class="fa-solid fa-expand"></i>';
     }
   });
+
+  // تفعيل الحماية
+  setupProtection();
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0a0a0a">
 <meta name="robots" content="noindex, nofollow">
 <title>الكورس | منصة الأستاذ محمد عيسى</title>
@@ -27,7 +27,6 @@
   <div class="bg-vignette"></div>
 </div>
 
-<!-- ═══ الهيدر ═══ -->
 <header class="course-top">
   <a href="index.html" class="course-top__back">
     <i class="fa-solid fa-arrow-right"></i>
@@ -38,13 +37,11 @@
   </button>
 </header>
 
-<!-- ═══ شاشة التحميل ═══ -->
 <div class="course-loading" id="courseLoading">
   <div class="loader"><span></span><span></span><span></span></div>
   <p>جارٍ تحميل الكورس...</p>
 </div>
 
-<!-- ═══ شاشة "غير مصرح" ═══ -->
 <div class="course-locked" id="courseLocked" hidden>
   <div class="course-locked__box">
     <div class="course-locked__icon">
@@ -65,10 +62,8 @@
   </div>
 </div>
 
-<!-- ═══ المحتوى الرئيسي ═══ -->
 <main class="course-shell" id="courseShell" hidden>
 
-  <!-- Hero -->
   <section class="course-hero">
     <div class="course-hero__cover" id="courseHeroCover">
       <div class="course-hero__cover-fallback">
@@ -86,7 +81,6 @@
     </div>
   </section>
 
-  <!-- Progress -->
   <section class="course-progress">
     <div class="course-progress__head">
       <span><i class="fa-solid fa-chart-line"></i> تقدمك في الكورس</span>
@@ -98,18 +92,14 @@
     <p class="course-progress__text" id="courseProgressText">0 / 0 درس</p>
   </section>
 
-  <!-- الفولدرات -->
   <section class="course-folders">
     <h3 class="course-folders__title">
       <i class="fa-solid fa-folder-tree"></i>
       محتوى الكورس
     </h3>
-    <div class="course-folders__list" id="foldersList">
-      <!-- يتولد ديناميكياً -->
-    </div>
+    <div class="course-folders__list" id="foldersList"></div>
   </section>
 
-  <!-- Empty -->
   <div class="empty-state" id="courseEmpty" hidden>
     <i class="fa-solid fa-inbox"></i>
     <h4>مفيش محتوى</h4>
@@ -119,97 +109,102 @@
 </main>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     Modal مشغل YouTube المحمي — مع أزرار مخصصة
+     مشغل الفيديو الجديد — تصميم أنيق + حماية قوية
      ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="videoPlayerModal" hidden>
   <div class="modal__backdrop modal__backdrop--solid"></div>
   <div class="modal__box modal__box--player">
 
     <!-- رأس المشغل -->
-    <div class="video-player__head">
-      <div class="video-player__info">
+    <div class="player-header">
+      <div class="player-header__info">
         <h3 id="videoPlayerTitle">—</h3>
         <p id="videoPlayerDesc"></p>
       </div>
-      <button class="modal__x" id="closeVideoPlayer" aria-label="إغلاق">
+      <button class="player-close" id="closeVideoPlayer" aria-label="إغلاق">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
 
     <!-- منطقة الفيديو -->
-    <div class="video-player__stage">
+    <div class="player-stage">
 
-      <!-- الفيديو الأصلي (مخفي اللمس) -->
-      <div id="ytPlayerContainer"></div>
+      <!-- الفيديو الأصلي -->
+      <div id="ytPlayerContainer" class="player-video"></div>
 
-      <!-- طبقة شفافة تمنع اللمس (الحماية الأساسية) -->
-      <div class="video-touch-blocker" id="videoTouchBlocker"></div>
+      <!-- 🛡️ طبقة منع اللمس (الحماية الأساسية) -->
+      <div class="player-shield" id="playerShield"></div>
 
-      <!-- Watermark -->
-      <div class="video-watermark" id="videoWatermark">
+      <!-- 🔴 Watermark -->
+      <div class="player-watermark" id="playerWatermark">
         <span>—</span>
       </div>
 
-      <!-- زر Play الكبير (للبداية) -->
-      <button class="video-big-play" id="videoBigPlay" hidden>
+      <!-- ⚠️ Blackout overlay (لما يحاول يصوّر) -->
+      <div class="player-blackout" id="playerBlackout" hidden>
+        <i class="fa-solid fa-camera-retro"></i>
+        <h3>⚠️ ممنوع التصوير</h3>
+        <p>سيتم استئناف الفيديو بعد لحظات</p>
+      </div>
+
+      <!-- 🎬 أزرار التحكم في الوسط -->
+      <div class="player-controls" id="playerControls">
+
+        <!-- ⏪ رجوع 10 ثواني -->
+        <button class="player-ctrl player-ctrl--skip" id="videoBackBtn" aria-label="رجوع 10 ثواني">
+          <i class="fa-solid fa-rotate-left"></i>
+          <span>10</span>
+        </button>
+
+        <!-- ▶️ Play / Pause -->
+        <button class="player-ctrl player-ctrl--play" id="videoPlayBtn" aria-label="تشغيل">
+          <i class="fa-solid fa-play"></i>
+        </button>
+
+        <!-- ⏩ تقدّم 10 ثواني -->
+        <button class="player-ctrl player-ctrl--skip" id="videoForwardBtn" aria-label="تقدّم 10 ثواني">
+          <i class="fa-solid fa-rotate-right"></i>
+          <span>10</span>
+        </button>
+
+      </div>
+
+      <!-- زر Play كبير (يظهر في البداية) -->
+      <div class="player-big-play" id="videoBigPlay">
         <i class="fa-solid fa-play"></i>
-      </button>
+      </div>
 
     </div>
 
-    <!-- شريط التقدم -->
-    <div class="video-progress" id="videoProgress">
-      <div class="video-progress__bar" id="videoProgressBar">
-        <div class="video-progress__fill" id="videoProgressFill" style="width:0%"></div>
-        <div class="video-progress__thumb" id="videoProgressThumb" style="inset-inline-start:0%"></div>
+    <!-- ⏱️ شريط التقدم -->
+    <div class="player-progress">
+      <div class="player-progress__bar" id="videoProgressBar">
+        <div class="player-progress__fill" id="videoProgressFill" style="width:0%"></div>
+        <div class="player-progress__thumb" id="videoProgressThumb" style="inset-inline-start:0%"></div>
       </div>
-      <div class="video-progress__time">
+      <div class="player-progress__time">
         <span id="videoTimeCurrent">00:00</span>
         <span id="videoTimeTotal">00:00</span>
       </div>
     </div>
 
-    <!-- أزرار التحكم (أزرارنا) -->
-    <div class="video-controls">
-      <button class="video-ctrl-btn video-ctrl-btn--back" id="videoBackBtn" title="رجوع 10 ثواني">
-        <i class="fa-solid fa-rotate-right"></i>
-        <span>10</span>
-      </button>
-
-      <button class="video-ctrl-btn video-ctrl-btn--play" id="videoPlayBtn" title="تشغيل/إيقاف">
-        <i class="fa-solid fa-play"></i>
-      </button>
-
-      <button class="video-ctrl-btn video-ctrl-btn--forward" id="videoForwardBtn" title="تقدّم 10 ثواني">
-        <i class="fa-solid fa-rotate-left"></i>
-        <span>10</span>
-      </button>
-
-      <div class="video-controls__spacer"></div>
-
-      <button class="video-ctrl-btn" id="videoMuteBtn" title="الصوت">
+    <!-- أزرار إضافية -->
+    <div class="player-extra">
+      <button class="player-extra-btn" id="videoMuteBtn" aria-label="الصوت">
         <i class="fa-solid fa-volume-high"></i>
       </button>
-
-      <button class="video-ctrl-btn" id="videoFullscreenBtn" title="شاشة كاملة">
+      <button class="player-extra-btn" id="videoFullscreenBtn" aria-label="شاشة كاملة">
         <i class="fa-solid fa-expand"></i>
       </button>
-    </div>
-
-    <!-- زر تم مشاهدة الدرس -->
-    <div class="video-player__foot">
-      <button class="btn btn--line btn--sm" id="markCompletedBtn">
+      <button class="player-extra-btn" id="markCompletedBtn" aria-label="تم مشاهدة الدرس">
         <i class="fa-solid fa-circle-check"></i>
-        تم مشاهدة الدرس
       </button>
     </div>
 
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     Modal اللينك الخارجي
-     ═══════════════════════════════════════════════════════════════ -->
+<!-- Modal اللينك -->
 <div class="modal" id="linkModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--link">
@@ -234,6 +229,16 @@
         فتح الرابط
       </a>
     </div>
+  </div>
+</div>
+
+<!-- تحذير فقدان التركيز -->
+<div class="cheat-warning" id="cheatWarning" hidden>
+  <div class="cheat-warning__box">
+    <i class="fa-solid fa-eye-slash"></i>
+    <h3>⚠️ رجّع تركيزك</h3>
+    <p id="cheatMsg">تم رصد خروجك من الشاشة</p>
+    <button class="btn btn--gold" id="resumeBtn">متابعة</button>
   </div>
 </div>
 
