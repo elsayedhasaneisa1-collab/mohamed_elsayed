@@ -28,6 +28,9 @@ let examModalState = {
   maxQuestions: 15
 };
 
+/* ═══════════════════════════════════════════════════════════════
+   الإحصائيات
+   ═══════════════════════════════════════════════════════════════ */
 async function loadStats() {
   try {
     const [profilesRes, coursesRes, enrollmentsRes, examsRes, toGradeRes] = await Promise.all([
@@ -414,6 +417,8 @@ function courseCard(course) {
     ? '<span class="badge badge--ok"><i class="fa-solid fa-check"></i> منشور</span>'
     : '<span class="badge badge--mut"><i class="fa-solid fa-pen"></i> مسودة</span>';
 
+  const gradesLabel = String(course.grade || '').split(',').map(g => g.trim()).filter(Boolean).join(' / ');
+
   return `
     <div class="course-card-admin" data-id="${course.id}">
       <div class="course-card-admin__cover">
@@ -425,7 +430,7 @@ function courseCard(course) {
           ${statusBadge}
         </div>
         <div class="course-card-admin__meta">
-          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(course.grade || '—')}</span>
+          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(gradesLabel || '—')}</span>
           <span><i class="fa-solid fa-school"></i> ${escapeHtml(course.type || 'عام')}${course.branch ? ' - ' + escapeHtml(course.branch) : ''}</span>
           <span><i class="fa-solid fa-folder-tree"></i> ${foldersCount} فولدر</span>
         </div>
@@ -567,7 +572,9 @@ async function loadCourseForEdit(courseId) {
     document.getElementById('courseDesc').value = course.description || '';
     document.getElementById('courseCoverUrl').value = course.cover_url || '';
 
-    $$('input[name="courseGrade"]').forEach(i => i.checked = (i.value === course.grade));
+    const courseGrades = String(course.grade || '').split(',').map(g => g.trim()).filter(Boolean);
+    $$('input[name="courseGrade"]').forEach(i => i.checked = courseGrades.includes(i.value));
+
     $$('input[name="courseType"]').forEach(i => i.checked = (i.value === course.type));
     $$('input[name="courseBranch"]').forEach(i => i.checked = (i.value === course.branch));
 
@@ -628,7 +635,7 @@ async function saveCourse() {
     const payload = {
       title,
       description: description || null,
-      grade: grades[0],
+      grade: grades.join(','),
       type: types[0],
       branch: branches[0] || null,
       cover_url: coverUrl || null,
@@ -1315,6 +1322,8 @@ function examCard(e) {
     ? '<span class="badge badge--info"><i class="fa-solid fa-clipboard-check"></i> واجب</span>'
     : '<span class="badge badge--gold"><i class="fa-solid fa-file-pen"></i> امتحان</span>';
 
+  const gradesLabel = String(e.grade || '').split(',').map(g => g.trim()).filter(Boolean).join(' / ');
+
   return `
     <div class="mcard" data-id="${e.id}">
       <div class="mcard__top">
@@ -1323,7 +1332,7 @@ function examCard(e) {
         ${statusBadge}
       </div>
       <div class="mcard__rows">
-        <div><b>الصف:</b> ${escapeHtml(e.grade || '—')}</div>
+        <div><b>الصف:</b> ${escapeHtml(gradesLabel || '—')}</div>
         <div><b>النوع:</b> ${escapeHtml(e.type || 'عام')}${e.branch ? ' - ' + escapeHtml(e.branch) : ''}</div>
         <div><b>المدة:</b> ${e.duration_minutes} دقيقة</div>
         <div><b>يفتح:</b> ${formatDate(e.opens_at)}</div>
@@ -2395,9 +2404,6 @@ function buildPdfHtml(attempt, answers) {
   `;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Excel — تنزيل الكل
-   ═══════════════════════════════════════════════════════════════ */
 async function downloadAllPdf() {
   if (!cache.pdf.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات'); return; }
 
@@ -3084,7 +3090,8 @@ async function saveExam(status = 'draft') {
 
     const payload = {
       title, description,
-      grade: grades[0], type: types[0], branch: branches[0] || null,
+      grade: grades.join(','),
+      type: types[0], branch: branches[0] || null,
       duration_minutes: duration,
       opens_at: opensISO, closes_at: closesISO,
       total_marks: totalMarks, pass_marks: passMarks,
@@ -3174,7 +3181,9 @@ async function loadExamForEdit(examId) {
       document.getElementById('examClosesAt').value = d.toISOString().slice(0, 16);
     }
 
-    $$('input[name="grade"]').forEach(i => i.checked = (i.value === exam.grade));
+    const examGrades = String(exam.grade || '').split(',').map(g => g.trim()).filter(Boolean);
+    $$('input[name="grade"]').forEach(i => i.checked = examGrades.includes(i.value));
+
     $$('input[name="type"]').forEach(i => i.checked = (i.value === exam.type));
     $$('input[name="branch"]').forEach(i => i.checked = (i.value === exam.branch));
 
