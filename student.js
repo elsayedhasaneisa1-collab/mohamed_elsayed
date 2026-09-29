@@ -3,7 +3,6 @@
 let currentUser = null;
 let currentProfile = null;
 
-/* ─────────────── الترحيب ─────────────── */
 function renderWelcome() {
   const firstName = (currentProfile.full_name || '').split(' ')[0] || 'طالب';
   $('#studentName').textContent = firstName;
@@ -17,26 +16,29 @@ function renderWelcome() {
   $('#studentMeta').textContent = meta;
 }
 
-/* ─────────────── الإحصائيات ─────────────── */
+function gradeMatches(itemGrade, studentGrade) {
+  if (!itemGrade) return false;
+  const list = String(itemGrade).split(',').map(g => g.trim()).filter(Boolean);
+  return list.includes(studentGrade);
+}
+
 async function loadStats() {
   const now = new Date().toISOString();
 
-  const [examsRes, assignmentsRes, pendingRes, gradedRes, coursesRes, activeCoursesRes] = await Promise.all([
+  const [examsRes, assignmentsRes, pendingRes, gradedRes, activeCoursesRes] = await Promise.all([
     supabaseClient
       .from('exams')
-      .select('id', { count: 'exact', head: true })
+      .select('id, grade', { count: 'exact' })
       .eq('status', 'published')
       .eq('kind', 'exam')
-      .eq('grade', currentProfile.grade)
       .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
     supabaseClient
       .from('exams')
-      .select('id', { count: 'exact', head: true })
+      .select('id, grade', { count: 'exact' })
       .eq('status', 'published')
       .eq('kind', 'assignment')
-      .eq('grade', currentProfile.grade)
       .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
@@ -53,21 +55,17 @@ async function loadStats() {
       .eq('status', 'graded'),
 
     supabaseClient
-      .from('courses')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_published', true)
-      .eq('grade', currentProfile.grade)
-      .eq('type', currentProfile.type),
-
-    supabaseClient
       .from('enrollments')
       .select('id', { count: 'exact', head: true })
       .eq('student_id', currentUser.id)
       .eq('status', 'active')
   ]);
 
-  $('#statAvailable').textContent = examsRes.count || 0;
-  $('#statAssignments').textContent = assignmentsRes.count || 0;
+  const examsFiltered = (examsRes.data || []).filter(e => gradeMatches(e.grade, currentProfile.grade));
+  const assignmentsFiltered = (assignmentsRes.data || []).filter(e => gradeMatches(e.grade, currentProfile.grade));
+
+  $('#statAvailable').textContent = examsFiltered.length;
+  $('#statAssignments').textContent = assignmentsFiltered.length;
   $('#statPending').textContent = pendingRes.count || 0;
   $('#statGraded').textContent = gradedRes.count || 0;
 
@@ -75,9 +73,8 @@ async function loadStats() {
   if (statCoursesEl) statCoursesEl.textContent = activeCoursesRes.count || 0;
 }
 
-/* ─────────────── دالة مساعدة ─────────────── */
 function studentSeesItem(item) {
-  if (item.grade !== currentProfile.grade) return false;
+  if (!gradeMatches(item.grade, currentProfile.grade)) return false;
   if (item.type !== currentProfile.type) return false;
   if (currentProfile.type === 'عام') return true;
   if (currentProfile.grade.includes('إعدادي')) return true;
@@ -85,11 +82,7 @@ function studentSeesItem(item) {
   return item.branch === currentProfile.branch;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   🛡️ حماية الكورسات والصور
-   ═══════════════════════════════════════════════════════════════ */
 function setupImageProtection() {
-  // 1) منع Right Click على الصور
   document.addEventListener('contextmenu', (e) => {
     const img = e.target.closest('img');
     const courseCard = e.target.closest('.course-card-student__cover');
@@ -100,7 +93,6 @@ function setupImageProtection() {
     }
   });
 
-  // 2) منع السحب
   document.addEventListener('dragstart', (e) => {
     const img = e.target.closest('img');
     if (img) {
@@ -109,7 +101,6 @@ function setupImageProtection() {
     }
   });
 
-  // 3) منع الضغط الطويل (Long Press) على الموبايل
   let longPressTimer = null;
 
   document.addEventListener('touchstart', (e) => {
@@ -137,43 +128,36 @@ function setupImageProtection() {
     }
   });
 
-  // 4) منع Ctrl+S / Ctrl+P / Ctrl+U + F12
   document.addEventListener('keydown', (e) => {
-    // F12
     if (e.key === 'F12') {
       e.preventDefault();
       Toast.warn('⚠️ ممنوع', 'أدوات المطور معطلة');
       return false;
     }
 
-    // Ctrl + Shift + I / J / C
     if (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) {
       e.preventDefault();
       Toast.warn('⚠️ ممنوع', 'أدوات المطور معطلة');
       return false;
     }
 
-    // Ctrl + U (view source)
     if (e.ctrlKey && e.key.toUpperCase() === 'U') {
       e.preventDefault();
       return false;
     }
 
-    // Ctrl + S (save)
     if (e.ctrlKey && e.key.toUpperCase() === 'S') {
       e.preventDefault();
       Toast.warn('⚠️ ممنوع', 'الحفظ معطل');
       return false;
     }
 
-    // Ctrl + P (print)
     if (e.ctrlKey && e.key.toUpperCase() === 'P') {
       e.preventDefault();
       Toast.warn('⚠️ ممنوع', 'الطباعة معطلة');
       return false;
     }
 
-    // Print Screen
     if (e.key === 'PrintScreen' || e.keyCode === 44) {
       e.preventDefault();
       Toast.warn('⚠️ ممنوع', 'التصوير معطل');
@@ -181,7 +165,6 @@ function setupImageProtection() {
     }
   });
 
-  // 5) منع النسخ
   document.addEventListener('copy', (e) => {
     if (e.target.closest('img') || e.target.closest('.course-card-student__cover')) {
       e.preventDefault();
@@ -189,7 +172,6 @@ function setupImageProtection() {
     }
   });
 
-  // 6) منع تحديد النص في الكورسات
   document.querySelectorAll('.course-card-student__cover').forEach(el => {
     el.style.userSelect = 'none';
     el.style.webkitUserSelect = 'none';
@@ -197,9 +179,6 @@ function setupImageProtection() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الكورسات
-   ═══════════════════════════════════════════════════════════════ */
 async function loadCourses() {
   const c = document.getElementById('coursesContainer');
   if (!c) return;
@@ -210,10 +189,9 @@ async function loadCourses() {
       .from('courses')
       .select('id, title, description, cover_url, grade, type, branch')
       .eq('is_published', true)
-      .eq('grade', currentProfile.grade)
       .eq('type', currentProfile.type)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (error) {
       console.error('Courses error:', error);
@@ -222,6 +200,7 @@ async function loadCourses() {
     }
 
     const filtered = (courses || []).filter(co => {
+      if (!gradeMatches(co.grade, currentProfile.grade)) return false;
       if (currentProfile.type === 'عام') return true;
       if (currentProfile.grade.includes('إعدادي')) return true;
       if (!co.branch) return true;
@@ -307,6 +286,8 @@ function courseCardStudent(course, enrollment) {
     `;
   }
 
+  const gradesLabel = String(course.grade || '').split(',').map(g => g.trim()).filter(Boolean).join(' / ');
+
   return `
     <div class="${cardCls}" data-id="${course.id}">
       <div class="course-card-student__cover">
@@ -317,7 +298,7 @@ function courseCardStudent(course, enrollment) {
         <h3>${escapeHtml(course.title)}</h3>
         ${course.description ? `<p class="course-card-student__desc">${escapeHtml(course.description)}</p>` : ''}
         <div class="course-card-student__meta">
-          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(course.grade || '—')}</span>
+          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(gradesLabel || '—')}</span>
           <span><i class="fa-solid fa-school"></i> ${escapeHtml(course.type || 'عام')}${course.branch ? ' - ' + escapeHtml(course.branch) : ''}</span>
         </div>
         <div class="course-card-student__acts">
@@ -387,9 +368,6 @@ async function enrollInCourse(courseId, btn) {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الامتحانات المتاحة
-   ═══════════════════════════════════════════════════════════════ */
 async function loadAvailableExams() {
   const c = document.getElementById('availableContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -401,11 +379,10 @@ async function loadAvailableExams() {
     .select('id, title, description, duration_minutes, closes_at, total_marks, grade, type, branch, kind')
     .eq('status', 'published')
     .eq('kind', 'exam')
-    .eq('grade', currentProfile.grade)
     .eq('type', currentProfile.type)
     .gte('closes_at', now)
     .order('closes_at', { ascending: true })
-    .limit(50);
+    .limit(100);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -430,9 +407,6 @@ async function loadAvailableExams() {
   bindStartButtons();
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   الواجبات
-   ═══════════════════════════════════════════════════════════════ */
 async function loadAssignments() {
   const c = document.getElementById('assignmentsContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -444,11 +418,10 @@ async function loadAssignments() {
     .select('id, title, description, duration_minutes, closes_at, total_marks, grade, type, branch, kind')
     .eq('status', 'published')
     .eq('kind', 'assignment')
-    .eq('grade', currentProfile.grade)
     .eq('type', currentProfile.type)
     .gte('closes_at', now)
     .order('closes_at', { ascending: true })
-    .limit(50);
+    .limit(100);
 
   if (error) { c.innerHTML = emptyState('fa-triangle-exclamation', 'خطأ', error.message); return; }
 
@@ -473,7 +446,6 @@ async function loadAssignments() {
   bindStartButtons();
 }
 
-/* ─────────────── كارت الامتحان/الواجب ─────────────── */
 function itemCard(item, attempt, kind) {
   const closesAt = new Date(item.closes_at);
   const diffMs = closesAt - new Date();
@@ -550,9 +522,6 @@ function bindStartButtons() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   قيد المراجعة
-   ═══════════════════════════════════════════════════════════════ */
 async function loadPendingAttempts() {
   const c = document.getElementById('pendingContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -612,9 +581,6 @@ function pendingAttemptCard(a) {
   `;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   تم تصحيحها
-   ═══════════════════════════════════════════════════════════════ */
 async function loadGradedAttempts() {
   const c = document.getElementById('gradedContainer');
   c.innerHTML = `<div class="loader"><span></span><span></span><span></span></div>`;
@@ -708,9 +674,6 @@ function bindGradedAttemptClick() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Modal تفاصيل المحاولة
-   ═══════════════════════════════════════════════════════════════ */
 async function openStudentAttemptModal(attemptId) {
   const modal = document.getElementById('studentAttemptModal');
   const body = document.getElementById('studentAttemptBody');
@@ -971,9 +934,6 @@ function renderStudentAttempt(attempt, answers, allChoices) {
   return hero + listHtml;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   فيديو الترحيب
-   ═══════════════════════════════════════════════════════════════ */
 async function loadWelcomeVideo() {
   const section = document.getElementById('welcomeVideoSection');
   const video = document.getElementById('welcomeVideo');
@@ -1022,7 +982,6 @@ async function loadWelcomeVideo() {
   }
 }
 
-/* ─────────────── أدوات ─────────────── */
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -1052,7 +1011,6 @@ function emptyState(icon, title, msg) {
   `;
 }
 
-/* ─────────────── التهيئة ─────────────── */
 document.addEventListener('DOMContentLoaded', async () => {
   Toast.init();
 
@@ -1092,7 +1050,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  /* ─── Modal أحداث ─── */
   document.getElementById('closeStudentAttemptModal')?.addEventListener('click', closeStudentAttemptModal);
   document.getElementById('studentAttemptModal')?.addEventListener('click', (e) => {
     if (e.target.classList.contains('modal__backdrop')) closeStudentAttemptModal();
@@ -1105,10 +1062,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 🛡️ تفعيل الحماية
   setupImageProtection();
 
-  // تحميل
   loadStats();
   loadCourses();
   loadAvailableExams();
