@@ -48,7 +48,6 @@
 
 <main class="admin-shell">
 
-  <!-- الإحصائيات -->
   <div class="admin-stats" id="statsGrid">
     <div class="astat">
       <div class="astat__ic"><i class="fa-solid fa-user-clock"></i></div>
@@ -82,7 +81,6 @@
     </div>
   </div>
 
-  <!-- التبويبات -->
   <div class="admin-tabs" role="tablist">
     <button class="admin-tabs__btn is-active" data-tab="pending">
       <i class="fa-solid fa-user-clock"></i>
@@ -120,13 +118,12 @@
       <span class="cnt" id="cntAttempts">0</span>
     </button>
     <button class="admin-tabs__btn" data-tab="pdf">
-      <i class="fa-solid fa-file-pdf"></i>
-      تنزيل PDF
+      <i class="fa-solid fa-file-excel"></i>
+      تنزيل Excel
       <span class="cnt" id="cntPdf">0</span>
     </button>
   </div>
 
-  <!-- 1. قيد المراجعة -->
   <section class="admin-panel is-active" data-panel="pending">
     <div class="panel-head">
       <div>
@@ -145,7 +142,6 @@
     </div>
   </section>
 
-  <!-- 2. الطلاب -->
   <section class="admin-panel" data-panel="students">
     <div class="panel-head">
       <div>
@@ -173,7 +169,6 @@
     </div>
   </section>
 
-  <!-- 3. الكورسات -->
   <section class="admin-panel" data-panel="courses">
     <div class="panel-head">
       <div>
@@ -196,7 +191,6 @@
     </div>
   </section>
 
-  <!-- 4. الاشتراكات -->
   <section class="admin-panel" data-panel="enrollments">
     <div class="panel-head">
       <div>
@@ -221,7 +215,6 @@
     </div>
   </section>
 
-  <!-- 5. الامتحانات -->
   <section class="admin-panel" data-panel="exams">
     <div class="panel-head">
       <div>
@@ -240,7 +233,6 @@
     </div>
   </section>
 
-  <!-- 6. تصحيح المقالي -->
   <section class="admin-panel" data-panel="grading">
     <div class="panel-head">
       <div>
@@ -264,7 +256,6 @@
     </div>
   </section>
 
-  <!-- 7. المحاولات -->
   <section class="admin-panel" data-panel="attempts">
     <div class="panel-head">
       <div>
@@ -290,12 +281,11 @@
     </div>
   </section>
 
-  <!-- 8. PDF -->
   <section class="admin-panel" data-panel="pdf">
     <div class="panel-head">
       <div>
-        <h2>تنزيل PDF</h2>
-        <p>نزّل إجابات الطلاب PDF — <strong style="color:var(--gold-2)">لازم تنزّل قبل المسح</strong></p>
+        <h2>تنزيل Excel</h2>
+        <p>نزّل نتائج الطلاب Excel — <strong style="color:var(--gold-2)">لازم تنزّل قبل المسح</strong></p>
       </div>
       <div class="panel-tools">
         <div class="search-box">
@@ -303,8 +293,8 @@
           <input type="search" id="searchPdf" placeholder="ابحث...">
         </div>
         <button class="btn btn--gold btn--sm" id="downloadAllPdfBtn">
-          <i class="fa-solid fa-download"></i>
-          تنزيل الكل
+          <i class="fa-solid fa-file-excel"></i>
+          تنزيل الكل Excel
         </button>
         <button class="btn btn--danger btn--sm" id="deleteExportedBtn" disabled>
           <i class="fa-solid fa-trash"></i>
@@ -316,7 +306,7 @@
       <i class="fa-solid fa-circle-info"></i>
       <div>
         <strong>مهم جداً</strong>
-        <p>مش هتقدر تمسح أي محاولة من قاعدة البيانات غير لما تنزّل الـ PDF بتاعها الأول.</p>
+        <p>مش هتقدر تمسح أي محاولة من قاعدة البيانات غير لما تنزّل الـ Excel بتاعها الأول.</p>
       </div>
     </div>
     <div id="pdfContainer">
@@ -326,13 +316,9 @@
 
 </main>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     Modal إنشاء / تعديل كورس
-     ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="courseModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--course">
-
     <div class="modal__head modal__head--course">
       <h3 id="courseModalTitle">
         <i class="fa-solid fa-book-open"></i>
@@ -342,16 +328,12 @@
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-
     <div class="modal__body modal__body--course" id="courseBody">
-
-      <!-- الغلاف -->
       <div class="course-cover-upload">
         <div class="course-cover-preview" id="courseCoverPreview">
           <i class="fa-solid fa-image"></i>
           <p>هتلاقي معاينة الصورة هنا</p>
         </div>
-
         <div class="q-field">
           <label><i class="fa-solid fa-link"></i> لينك صورة الغلاف</label>
           <input type="url" id="courseCoverUrl" class="q-input" placeholder="https://example.com/cover.jpg" dir="ltr">
@@ -361,23 +343,17 @@
           </small>
         </div>
       </div>
-
-      <!-- البيانات الأساسية -->
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-circle-info"></i> البيانات الأساسية</div>
-
         <div class="q-field">
           <label><i class="fa-solid fa-heading"></i> عنوان الكورس <span class="req">*</span></label>
           <input type="text" id="courseTitle" class="q-input" placeholder="مثال: اللغة العربية - النحو">
         </div>
-
         <div class="q-field">
           <label><i class="fa-solid fa-align-right"></i> الوصف</label>
           <textarea id="courseDesc" class="q-textarea" placeholder="وصف الكورس..."></textarea>
         </div>
       </div>
-
-      <!-- الصف -->
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-layer-group"></i> الصف <span class="req">*</span></div>
         <div class="checkbox-grid" id="courseGradesGrid">
@@ -389,8 +365,6 @@
           <label class="checkbox-item"><input type="checkbox" name="courseGrade" value="الثالث الثانوي"><i class="fa-solid fa-check box"></i> الثالث الثانوي</label>
         </div>
       </div>
-
-      <!-- النوع -->
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-school"></i> النوع <span class="req">*</span></div>
         <div class="checkbox-grid checkbox-grid--2">
@@ -398,8 +372,6 @@
           <label class="checkbox-item"><input type="checkbox" name="courseType" value="أزهر"><i class="fa-solid fa-check box"></i> أزهر</label>
         </div>
       </div>
-
-      <!-- الفرع -->
       <div class="form-section" id="courseBranchesSection" hidden>
         <div class="form-section__t"><i class="fa-solid fa-code-branch"></i> الفرع</div>
         <div class="checkbox-grid checkbox-grid--2">
@@ -407,9 +379,7 @@
           <label class="checkbox-item"><input type="checkbox" name="courseBranch" value="أدبي"><i class="fa-solid fa-check box"></i> أدبي</label>
         </div>
       </div>
-
     </div>
-
     <div class="modal__foot modal__foot--course">
       <button type="button" class="btn btn--line" id="cancelCourseBtn">
         <i class="fa-solid fa-xmark"></i> إلغاء
@@ -418,17 +388,12 @@
         <i class="fa-solid fa-check"></i> حفظ
       </button>
     </div>
-
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     Modal إدارة الفولدرات
-     ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="foldersModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--folders">
-
     <div class="modal__head modal__head--folders">
       <h3 id="foldersModalTitle">
         <i class="fa-solid fa-folder-tree"></i>
@@ -438,11 +403,9 @@
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-
     <div class="modal__body modal__body--folders" id="foldersBody">
       <div class="loader"><span></span><span></span><span></span></div>
     </div>
-
     <div class="modal__foot modal__foot--folders">
       <button type="button" class="btn btn--line" id="closeFoldersBtn">
         <i class="fa-solid fa-xmark"></i> إغلاق
@@ -451,24 +414,18 @@
         <i class="fa-solid fa-folder-plus"></i> إضافة فولدر
       </button>
     </div>
-
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     Modal إضافة / تعديل فولدر
-     ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="folderModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--sm-form">
-
     <div class="modal__head">
       <h3 id="folderModalTitle">فولدر جديد</h3>
       <button class="modal__x" id="closeFolderModal" aria-label="إغلاق">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-
     <div class="modal__body">
       <div class="q-field">
         <label><i class="fa-solid fa-heading"></i> عنوان الفولدر <span class="req">*</span></label>
@@ -479,31 +436,23 @@
         <textarea id="folderDesc" class="q-textarea" placeholder="وصف الفولدر..."></textarea>
       </div>
     </div>
-
     <div class="modal__foot">
       <button type="button" class="btn btn--line" id="cancelFolderBtn">إلغاء</button>
       <button type="button" class="btn btn--gold" id="saveFolderBtn">حفظ</button>
     </div>
-
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     Modal إضافة عنصر للفولدر (فيديو/لينك)
-     ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="itemModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--sm-form">
-
     <div class="modal__head">
       <h3 id="itemModalTitle">عنصر جديد</h3>
       <button class="modal__x" id="closeItemModal" aria-label="إغلاق">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-
     <div class="modal__body">
-
       <div class="exam-kind-tabs" style="grid-template-columns:1fr 1fr;">
         <label class="exam-kind-tab is-active" data-itemtype="youtube">
           <input type="radio" name="itemType" value="youtube" checked>
@@ -516,12 +465,10 @@
           لينك خارجي
         </label>
       </div>
-
       <div class="q-field">
         <label><i class="fa-solid fa-heading"></i> العنوان <span class="req">*</span></label>
         <input type="text" id="itemTitle" class="q-input" placeholder="مثال: شرح الدرس الأول">
       </div>
-
       <div class="q-field" id="itemYoutubeField">
         <label><i class="fa-brands fa-youtube"></i> YouTube ID أو رابط الفيديو <span class="req">*</span></label>
         <input type="text" id="itemYoutubeId" class="q-input" placeholder="مثال: dQw4w9WgXcQ أو رابط كامل" dir="ltr">
@@ -530,30 +477,22 @@
           <span>لصق الرابط كامل، هنستخرج الـ ID تلقائياً</span>
         </small>
       </div>
-
       <div class="q-field" id="itemLinkField" hidden>
         <label><i class="fa-solid fa-link"></i> الرابط <span class="req">*</span></label>
         <input type="text" id="itemExternalUrl" class="q-input" placeholder="https://..." dir="ltr">
       </div>
-
       <div class="q-field">
         <label><i class="fa-solid fa-align-right"></i> الوصف</label>
         <textarea id="itemDesc" class="q-textarea" placeholder="وصف..."></textarea>
       </div>
-
     </div>
-
     <div class="modal__foot">
       <button type="button" class="btn btn--line" id="cancelItemBtn">إلغاء</button>
       <button type="button" class="btn btn--gold" id="saveItemBtn">حفظ</button>
     </div>
-
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     Modal تصحيح محاولة
-     ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="gradingModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--grading">
@@ -577,7 +516,6 @@
   </div>
 </div>
 
-<!-- Modal تفاصيل الطالب -->
 <div class="modal" id="studentDetailsModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--details">
@@ -601,7 +539,6 @@
   </div>
 </div>
 
-<!-- Modal إنشاء امتحان -->
 <div class="modal" id="examModal" hidden>
   <div class="modal__backdrop"></div>
   <div class="modal__box modal__box--exam">
@@ -611,9 +548,7 @@
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-
     <div class="modal__body modal__body--exam">
-
       <div class="exam-kind-tabs">
         <label class="exam-kind-tab is-active" data-kind="exam">
           <input type="radio" name="examKind" value="exam" checked>
@@ -626,7 +561,6 @@
           واجب
         </label>
       </div>
-
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-circle-info"></i> المعلومات الأساسية</div>
         <div class="q-field">
@@ -638,7 +572,6 @@
           <textarea id="examDesc" class="q-textarea" placeholder="وصف مختصر..."></textarea>
         </div>
       </div>
-
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-layer-group"></i> الصف <span class="req">*</span></div>
         <div class="checkbox-grid" id="gradesGrid">
@@ -650,7 +583,6 @@
           <label class="checkbox-item"><input type="checkbox" name="grade" value="الثالث الثانوي"><i class="fa-solid fa-check box"></i> الثالث الثانوي</label>
         </div>
       </div>
-
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-school"></i> النوع <span class="req">*</span></div>
         <div class="checkbox-grid checkbox-grid--2">
@@ -658,7 +590,6 @@
           <label class="checkbox-item"><input type="checkbox" name="type" value="أزهر"><i class="fa-solid fa-check box"></i> أزهر</label>
         </div>
       </div>
-
       <div class="form-section" id="branchesSection" hidden>
         <div class="form-section__t"><i class="fa-solid fa-code-branch"></i> الفرع <span class="req">*</span></div>
         <div class="checkbox-grid checkbox-grid--2">
@@ -666,7 +597,6 @@
           <label class="checkbox-item"><input type="checkbox" name="branch" value="أدبي"><i class="fa-solid fa-check box"></i> أدبي</label>
         </div>
       </div>
-
       <div class="form-section">
         <div class="form-section__t"><i class="fa-solid fa-sliders"></i> الإعدادات</div>
         <div class="q-row">
@@ -690,7 +620,6 @@
           </div>
         </div>
       </div>
-
       <div class="form-section">
         <div class="questions-head">
           <div class="form-section__t" style="margin-bottom:0"><i class="fa-solid fa-list-check"></i> الأسئلة</div>
@@ -704,9 +633,7 @@
           إضافة سؤال
         </button>
       </div>
-
     </div>
-
     <div class="modal__foot modal__foot--exam">
       <button type="button" class="btn btn--line" id="cancelExamBtn"><i class="fa-solid fa-xmark"></i> إلغاء</button>
       <button type="button" class="btn btn--line" id="saveDraftBtn"><i class="fa-solid fa-floppy-disk"></i> حفظ كمسودة</button>
@@ -715,12 +642,11 @@
   </div>
 </div>
 
-<!-- Progress -->
 <div class="modal" id="progressModal" hidden>
   <div class="modal__backdrop modal__backdrop--solid"></div>
   <div class="modal__box modal__box--sm">
     <div class="progress-panel">
-      <div class="progress-panel__icon"><i class="fa-solid fa-file-pdf"></i></div>
+      <div class="progress-panel__icon"><i class="fa-solid fa-file-excel"></i></div>
       <h3 id="progressTitle">جارٍ التوليد...</h3>
       <p id="progressText">من فضلك استنى</p>
       <div class="progress-bar"><i id="progressFill" style="width:0%"></i></div>
@@ -735,6 +661,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="auth.js"></script>
 <script src="ui.js"></script>
 <script src="guard.js"></script>

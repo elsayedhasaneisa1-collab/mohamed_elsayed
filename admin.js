@@ -1,9 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════
-   admin.js — لوحة التحكم
-   منصة الأستاذ محمد عيسى
-   الكورسات + الفولدرات + الاشتراكات + الامتحانات + التصحيح
-   ═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
 let currentUser = null;
@@ -34,9 +28,6 @@ let examModalState = {
   maxQuestions: 15
 };
 
-/* ═══════════════════════════════════════════════════════════════
-   الإحصائيات
-   ═══════════════════════════════════════════════════════════════ */
 async function loadStats() {
   try {
     const [profilesRes, coursesRes, enrollmentsRes, examsRes, toGradeRes] = await Promise.all([
@@ -582,7 +573,6 @@ async function loadCourseForEdit(courseId) {
 
     updateCourseBranchesVisibility();
 
-    // معاينة الغلاف
     if (course.cover_url) {
       const preview = document.getElementById('courseCoverPreview');
       preview.innerHTML = `<img src="${escapeHtml(course.cover_url)}" alt="Cover" onerror="this.parentElement.innerHTML='<i class=\\'fa-solid fa-triangle-exclamation\\'></i><p>الصورة مش موجودة</p>';this.parentElement.classList.remove('has-image');">`;
@@ -1048,7 +1038,6 @@ function bindFolderActions() {
   });
 }
 
-/* ─────────────── Modal الفولدر ─────────────── */
 function openFolderModal(folderId = null) {
   const modal = document.getElementById('folderModal');
   if (!modal) return;
@@ -1127,7 +1116,6 @@ async function saveFolder() {
   }
 }
 
-/* ─────────────── Modal العنصر ─────────────── */
 function openItemModal(itemId = null, folderId = null) {
   const modal = document.getElementById('itemModal');
   if (!modal) return;
@@ -2066,7 +2054,7 @@ function bindAttemptClick() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   9. PDF
+   9. Excel (بدل PDF للكل)
    ═══════════════════════════════════════════════════════════════ */
 async function loadPdfList() {
   const c = document.getElementById('pdfContainer');
@@ -2116,7 +2104,7 @@ function renderPdfList() {
   }
 
   if (!list.length) {
-    c.innerHTML = emptyState('fa-file-pdf', 'مفيش محاولات جاهزة', 'لما طالب يسلّم امتحان هيظهر هنا');
+    c.innerHTML = emptyState('fa-file-excel', 'مفيش محاولات جاهزة', 'لما طالب يسلّم امتحان هيظهر هنا');
     return;
   }
 
@@ -2407,6 +2395,9 @@ function buildPdfHtml(attempt, answers) {
   `;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Excel — تنزيل الكل
+   ═══════════════════════════════════════════════════════════════ */
 async function downloadAllPdf() {
   if (!cache.pdf.length) { Toast.warn('مفيش حاجة', 'مفيش محاولات'); return; }
 
@@ -2415,8 +2406,8 @@ async function downloadAllPdf() {
 
   const ok = await UI.confirm({
     type: 'info',
-    title: 'تنزيل كل الملفات؟',
-    message: `سيتم تنزيل ${list.length} تقرير PDF. قد ياخد وقت.`,
+    title: 'تنزيل Excel؟',
+    message: `سيتم تنزيل تقرير Excel فيه ${list.length} محاولة.`,
     confirmText: 'تنزيل',
     cancelText: 'إلغاء'
   });
@@ -2424,105 +2415,121 @@ async function downloadAllPdf() {
 
   showProgress('جارٍ التحضير...', `0 / ${list.length}`);
 
-  let done = 0;
-  for (const attempt of list) {
-    try {
-      await exportSinglePdfWithoutDialog(attempt, done, list.length);
+  try {
+    const rows = [];
+    let done = 0;
+
+    for (const attempt of list) {
+      const { data: answers } = await supabaseClient
+        .from('answers')
+        .select(`
+          id, selected_choice_id, essay_text, marks_awarded,
+          questions:question_id (question_text, question_type, marks, order_index),
+          selected_choice:selected_choice_id (choice_text, is_correct)
+        `)
+        .eq('attempt_id', attempt.id);
+
+      let correctCount = 0;
+      let wrongCount = 0;
+      let unansweredCount = 0;
+
+      const mcqIds = (answers || [])
+        .filter(a => a.questions?.question_type === 'mcq')
+        .map(a => a.questions.id);
+
+      let allChoices = [];
+      if (mcqIds.length) {
+        const { data: choicesData } = await supabaseClient
+          .from('choices')
+          .select('id, question_id, is_correct')
+          .in('question_id', mcqIds);
+        allChoices = choicesData || [];
+      }
+
+      (answers || []).forEach(a => {
+        const q = a.questions;
+        if (!q) return;
+
+        if (q.question_type === 'mcq') {
+          const correctChoice = allChoices.find(c => c.question_id === q.id && c.is_correct);
+          const isCorrect = a.selected_choice_id && correctChoice && a.selected_choice_id === correctChoice.id;
+
+          if (!a.selected_choice_id) unansweredCount++;
+          else if (isCorrect) correctCount++;
+          else wrongCount++;
+        } else {
+          if (!a.essay_text || !a.essay_text.trim()) unansweredCount++;
+        }
+      });
+
+      const student = attempt.profiles || {};
+      const exam = attempt.exams || {};
+      const pct = attempt.total_marks ? Math.round((attempt.score / attempt.total_marks) * 100) : 0;
+      const time = calcDuration(attempt.started_at, attempt.submitted_at || attempt.expires_at);
+      const kindLabel = exam.kind === 'assignment' ? 'واجب' : 'امتحان';
+
+      rows.push({
+        'اسم الطالب': student.full_name || '—',
+        'رقم الطالب': student.phone || '—',
+        'رقم ولي الأمر': student.parent_phone || '—',
+        'الصف': student.grade || '—',
+        'النوع': kindLabel,
+        'الامتحان': exam.title || '—',
+        'الدرجة': attempt.score ?? 0,
+        'الدرجة الكلية': attempt.total_marks ?? 0,
+        'النسبة %': pct,
+        'صح': correctCount,
+        'خطأ': wrongCount,
+        'لم يجب': unansweredCount,
+        'الوقت المستغرق': time,
+        'تاريخ التسليم': formatDate(attempt.submitted_at)
+      });
+
       done++;
       updateProgress((done / list.length) * 100, `${done} / ${list.length}`);
-    } catch (err) {
-      console.error('فشل:', attempt.id, err);
     }
-  }
 
-  hideProgress();
-  Toast.success('خلص التنزيل ✅', `اتنزل ${done} ملف`);
-  loadPdfList();
-  loadStats();
-}
+    updateProgress(95, 'جارٍ إنشاء الملف...');
 
-async function exportSinglePdfWithoutDialog(attempt, done, total) {
-  const { data: answers, error } = await supabaseClient
-    .from('answers')
-    .select(`
-      id, selected_choice_id, essay_text, marks_awarded,
-      questions:question_id (question_text, question_type, marks, order_index),
-      choices:selected_choice_id (choice_text)
-    `)
-    .eq('attempt_id', attempt.id)
-    .order('answered_at', { ascending: true });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 28 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 10 },
+      { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 10 },
+      { wch: 8 }, { wch: 8 }, { wch: 10 },
+      { wch: 15 }, { wch: 22 }
+    ];
 
-  if (error) throw error;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'النتائج');
 
-  const sortedAnswers = (answers || []).sort((a, b) => {
-    const ai = a.questions?.order_index ?? 0;
-    const bi = b.questions?.order_index ?? 0;
-    return ai - bi;
-  });
+    const fileName = `نتائج_الطلاب_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
 
-  const html = buildPdfHtml(attempt, sortedAnswers);
-  const template = document.getElementById('pdfTemplate');
-  template.innerHTML = html;
+    for (const attempt of list) {
+      await supabaseClient
+        .from('attempts')
+        .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
+        .eq('id', attempt.id);
 
-  const canvas = await html2canvas(template.firstElementChild, {
-    scale: 1.5,
-    backgroundColor: '#ffffff',
-    useCORS: true,
-    logging: false
-  });
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const imgWidth = pageWidth;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
-
-  if (imgHeight <= pageHeight) {
-    doc.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
-  } else {
-    let yPos = 0;
-    let heightLeft = imgHeight;
-    const pageHeightPx = (pageHeight * canvas.width) / pageWidth;
-
-    while (heightLeft > 0) {
-      const sourceY = (imgHeight - heightLeft) * (canvas.height / imgHeight);
-      const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
-
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = canvas.width;
-      pageCanvas.height = sourceHeight;
-      const ctx = pageCanvas.getContext('2d');
-      ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
-
-      const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
-      const drawHeight = (sourceHeight * imgWidth) / canvas.width;
-
-      if (yPos > 0) doc.addPage();
-      doc.addImage(pageImgData, 'JPEG', 0, 0, imgWidth, drawHeight);
-
-      heightLeft -= pageHeightPx;
-      yPos++;
+      const inCache = cache.pdf.find(x => x.id === attempt.id);
+      if (inCache) inCache.pdf_exported = true;
     }
+
+    updateProgress(100, 'تم ✅');
+
+    setTimeout(() => {
+      hideProgress();
+      Toast.success('تم التنزيل ✅', `اتنزل ملف Excel فيه ${list.length} محاولة`);
+      renderPdfList();
+      updateDeleteBtn();
+      loadStats();
+    }, 400);
+
+  } catch (err) {
+    console.error('Excel error:', err);
+    hideProgress();
+    Toast.error('خطأ', err.message || 'فشل توليد الـ Excel');
   }
-
-  const student = attempt.profiles || {};
-  const exam = attempt.exams || {};
-  const safeName = (student.username || 'student').replace(/[^a-z0-9_]/gi, '_');
-  const safeExam = (exam.title || 'exam').replace(/[^\u0600-\u06FFa-z0-9]/gi, '_').slice(0, 30);
-  doc.save(`${String(done + 1).padStart(3, '0')}_${safeName}_${safeExam}.pdf`);
-
-  await supabaseClient
-    .from('attempts')
-    .update({ pdf_exported: true, pdf_exported_at: new Date().toISOString() })
-    .eq('id', attempt.id);
-
-  const inCache = cache.pdf.find(x => x.id === attempt.id);
-  if (inCache) inCache.pdf_exported = true;
-
-  template.innerHTML = '';
 }
 
 function showProgress(title, text) {
@@ -3290,7 +3297,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initTabs();
 
-  /* ─── أزرار الهيدر ─── */
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     const ok = await UI.confirm({
       type: 'warn', title: 'تسجيل الخروج؟',
@@ -3316,7 +3322,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     Toast.info('تم التحديث', '');
   });
 
-  /* ─── بحث ─── */
   document.getElementById('searchPending')?.addEventListener('input', () => {
     const q = document.getElementById('searchPending').value.toLowerCase();
     $$('#pendingContainer .mcard').forEach(card => {
@@ -3335,11 +3340,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('filterAttempts')?.addEventListener('change', renderAttempts);
   document.getElementById('searchPdf')?.addEventListener('input', renderPdfList);
 
-  /* ─── PDF ─── */
   document.getElementById('downloadAllPdfBtn')?.addEventListener('click', downloadAllPdf);
   document.getElementById('deleteExportedBtn')?.addEventListener('click', deleteExported);
 
-  /* ─── كورسات ─── */
   document.getElementById('newCourseBtn')?.addEventListener('click', () => openCourseModal());
   document.getElementById('closeCourseModal')?.addEventListener('click', closeCourseModal);
   document.getElementById('cancelCourseBtn')?.addEventListener('click', closeCourseModal);
@@ -3348,7 +3351,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.getElementById('saveCourseBtn')?.addEventListener('click', saveCourse);
 
-  /* ─── معاينة لينك الغلاف ─── */
   document.getElementById('courseCoverUrl')?.addEventListener('input', (e) => {
     const url = e.target.value.trim();
     const preview = document.getElementById('courseCoverPreview');
@@ -3372,12 +3374,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     img.src = url;
   });
 
-  /* ─── تحديث الفروع في الكورس ─── */
   $$('input[name="courseGrade"], input[name="courseType"]').forEach(i => {
     i.addEventListener('change', updateCourseBranchesVisibility);
   });
 
-  /* ─── الفولدرات ─── */
   document.getElementById('closeFoldersModal')?.addEventListener('click', closeFoldersModal);
   document.getElementById('closeFoldersBtn')?.addEventListener('click', closeFoldersModal);
   document.getElementById('foldersModal')?.addEventListener('click', (e) => {
@@ -3392,7 +3392,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.target.classList.contains('modal__backdrop')) closeFolderModal();
   });
 
-  /* ─── العنصر ─── */
   document.getElementById('closeItemModal')?.addEventListener('click', closeItemModal);
   document.getElementById('cancelItemBtn')?.addEventListener('click', closeItemModal);
   document.getElementById('saveItemBtn')?.addEventListener('click', saveItem);
@@ -3415,7 +3414,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  /* ─── الامتحانات ─── */
   document.getElementById('newExamBtn')?.addEventListener('click', () => openExamModal());
   document.getElementById('closeExamModal')?.addEventListener('click', closeExamModal);
   document.getElementById('cancelExamBtn')?.addEventListener('click', closeExamModal);
@@ -3444,7 +3442,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('saveDraftBtn')?.addEventListener('click', () => saveExam('draft'));
   document.getElementById('publishExamBtn')?.addEventListener('click', () => saveExam('published'));
 
-  /* ─── Modal تفاصيل الطالب ─── */
   document.getElementById('closeDetailsModal')?.addEventListener('click', closeStudentDetails);
   document.getElementById('closeDetailsBtn')?.addEventListener('click', closeStudentDetails);
   document.getElementById('studentDetailsModal')?.addEventListener('click', (e) => {
@@ -3458,7 +3455,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await exportSinglePdf(att);
   });
 
-  /* ─── Modal التصحيح ─── */
   document.getElementById('closeGradingModal')?.addEventListener('click', closeGradingModal);
   document.getElementById('cancelGradingBtn')?.addEventListener('click', closeGradingModal);
   document.getElementById('gradingModal')?.addEventListener('click', (e) => {
@@ -3466,7 +3462,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.getElementById('saveGradingBtn')?.addEventListener('click', saveGrading);
 
-  /* ─── تحميل أولي ─── */
   loadStats();
   loadPending();
 });
