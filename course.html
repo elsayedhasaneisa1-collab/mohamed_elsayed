@@ -109,7 +109,7 @@
 </main>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     مشغل الفيديو الجديد — تصميم أنيق + حماية قوية
+     مشغل الفيديو — تصميم مبسط
      ═══════════════════════════════════════════════════════════════ -->
 <div class="modal" id="videoPlayerModal" hidden>
   <div class="modal__backdrop modal__backdrop--solid"></div>
@@ -119,7 +119,6 @@
     <div class="player-header">
       <div class="player-header__info">
         <h3 id="videoPlayerTitle">—</h3>
-        <p id="videoPlayerDesc"></p>
       </div>
       <button class="player-close" id="closeVideoPlayer" aria-label="إغلاق">
         <i class="fa-solid fa-xmark"></i>
@@ -129,54 +128,27 @@
     <!-- منطقة الفيديو -->
     <div class="player-stage">
 
-      <!-- الفيديو الأصلي -->
       <div id="ytPlayerContainer" class="player-video"></div>
 
-      <!-- 🛡️ طبقة منع اللمس (الحماية الأساسية) -->
       <div class="player-shield" id="playerShield"></div>
 
-      <!-- 🔴 Watermark -->
       <div class="player-watermark" id="playerWatermark">
         <span>—</span>
       </div>
 
-      <!-- ⚠️ Blackout overlay (لما يحاول يصوّر) -->
       <div class="player-blackout" id="playerBlackout" hidden>
         <i class="fa-solid fa-camera-retro"></i>
         <h3>⚠️ ممنوع التصوير</h3>
         <p>سيتم استئناف الفيديو بعد لحظات</p>
       </div>
 
-      <!-- 🎬 أزرار التحكم في الوسط -->
-      <div class="player-controls" id="playerControls">
-
-        <!-- ⏪ رجوع 10 ثواني -->
-        <button class="player-ctrl player-ctrl--skip" id="videoBackBtn" aria-label="رجوع 10 ثواني">
-          <i class="fa-solid fa-rotate-left"></i>
-          <span>10</span>
-        </button>
-
-        <!-- ▶️ Play / Pause -->
-        <button class="player-ctrl player-ctrl--play" id="videoPlayBtn" aria-label="تشغيل">
-          <i class="fa-solid fa-play"></i>
-        </button>
-
-        <!-- ⏩ تقدّم 10 ثواني -->
-        <button class="player-ctrl player-ctrl--skip" id="videoForwardBtn" aria-label="تقدّم 10 ثواني">
-          <i class="fa-solid fa-rotate-right"></i>
-          <span>10</span>
-        </button>
-
-      </div>
-
-      <!-- زر Play كبير (يظهر في البداية) -->
       <div class="player-big-play" id="videoBigPlay">
         <i class="fa-solid fa-play"></i>
       </div>
 
     </div>
 
-    <!-- ⏱️ شريط التقدم -->
+    <!-- شريط التقدم -->
     <div class="player-progress">
       <div class="player-progress__bar" id="videoProgressBar">
         <div class="player-progress__fill" id="videoProgressFill" style="width:0%"></div>
@@ -188,15 +160,26 @@
       </div>
     </div>
 
-    <!-- أزرار إضافية -->
-    <div class="player-extra">
-      <button class="player-extra-btn" id="videoMuteBtn" aria-label="الصوت">
+    <!-- أزرار التحكم -->
+    <div class="player-actions">
+      <button class="player-action" id="videoPlayBtn" aria-label="تشغيل">
+        <i class="fa-solid fa-play"></i>
+      </button>
+      <button class="player-action" id="videoBackBtn" aria-label="رجوع 10 ثواني">
+        <i class="fa-solid fa-rotate-left"></i>
+        <span>10</span>
+      </button>
+      <button class="player-action" id="videoForwardBtn" aria-label="تقدّم 10 ثواني">
+        <i class="fa-solid fa-rotate-right"></i>
+        <span>10</span>
+      </button>
+      <button class="player-action" id="videoMuteBtn" aria-label="الصوت">
         <i class="fa-solid fa-volume-high"></i>
       </button>
-      <button class="player-extra-btn" id="videoFullscreenBtn" aria-label="شاشة كاملة">
+      <button class="player-action" id="videoFullscreenBtn" aria-label="شاشة كاملة">
         <i class="fa-solid fa-expand"></i>
       </button>
-      <button class="player-extra-btn" id="markCompletedBtn" aria-label="تم مشاهدة الدرس">
+      <button class="player-action" id="markCompletedBtn" aria-label="تم المشاهدة">
         <i class="fa-solid fa-circle-check"></i>
       </button>
     </div>
@@ -232,7 +215,6 @@
   </div>
 </div>
 
-<!-- تحذير فقدان التركيز -->
 <div class="cheat-warning" id="cheatWarning" hidden>
   <div class="cheat-warning__box">
     <i class="fa-solid fa-eye-slash"></i>
