@@ -2063,7 +2063,7 @@ function bindAttemptClick() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   9. Excel (بدل PDF للكل)
+   9. Excel (ملخص لكل طالب)
    ═══════════════════════════════════════════════════════════════ */
 async function loadPdfList() {
   const c = document.getElementById('pdfContainer');
