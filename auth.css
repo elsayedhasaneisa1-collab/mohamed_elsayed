@@ -471,7 +471,7 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   position:fixed;
   inset:0;
   z-index:99998;
-  background:rgba(0,0,0,.85);
+  background:#000;
   display:flex;
   align-items:center;
   justify-content:center;
