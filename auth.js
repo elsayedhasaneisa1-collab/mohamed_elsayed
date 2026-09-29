@@ -270,11 +270,36 @@ function initSignupPage() {
   const gradeMenu = document.getElementById('gradeSelectMenu');
 
   if (gradeBtn && gradeMenu) {
+    let overlay = document.getElementById('gradeSelectOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'custom-select-overlay';
+      overlay.id = 'gradeSelectOverlay';
+      overlay.hidden = true;
+      document.body.appendChild(overlay);
+    }
+
+    const openMenu = () => {
+      gradeMenu.hidden = false;
+      overlay.hidden = false;
+      gradeBtn.classList.add('is-open');
+    };
+
+    const closeMenu = () => {
+      gradeMenu.hidden = true;
+      overlay.hidden = true;
+      gradeBtn.classList.remove('is-open');
+    };
+
     gradeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const isOpen = !gradeMenu.hidden;
-      gradeMenu.hidden = isOpen;
-      gradeBtn.classList.toggle('is-open', !isOpen);
+      gradeMenu.hidden ? openMenu() : closeMenu();
+    });
+
+    overlay.addEventListener('click', closeMenu);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMenu();
     });
 
     $$('.custom-select-menu__item', gradeMenu).forEach(item => {
@@ -289,20 +314,10 @@ function initSignupPage() {
           i.classList.toggle('is-selected', i.dataset.value === value);
         });
 
-        gradeMenu.hidden = true;
-        gradeBtn.classList.remove('is-open');
-
+        closeMenu();
         setFieldState(gradeHidden.closest('.field'), 'ok');
         updateBranch();
       });
-    });
-
-    // إغلاق القائمة عند الضغط خارجها
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('[data-field="grade"]')) {
-        gradeMenu.hidden = true;
-        gradeBtn.classList.remove('is-open');
-      }
     });
   }
 
@@ -324,7 +339,6 @@ function initSignupPage() {
     if (strengthText) strengthText.textContent = STRENGTH_LABELS[level];
     setFieldState(passwordInput.closest('.field'), pwd ? (pwd.length >= 6 ? 'ok' : 'invalid') : null);
 
-    // لو فيه تأكيد كلمة سر — نتحقق
     if (confirmPasswordInput && confirmPasswordInput.value) {
       const confirm = confirmPasswordInput.value;
       const cField = confirmPasswordInput.closest('.field');
