@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════
-   student.js — الصفحة الرئيسية للطالب
-   منصة الأستاذ محمد عيسى
-   ═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
 let currentUser = null;
@@ -91,6 +86,118 @@ function studentSeesItem(item) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   🛡️ حماية الكورسات والصور
+   ═══════════════════════════════════════════════════════════════ */
+function setupImageProtection() {
+  // 1) منع Right Click على الصور
+  document.addEventListener('contextmenu', (e) => {
+    const img = e.target.closest('img');
+    const courseCard = e.target.closest('.course-card-student__cover');
+    if (img || courseCard) {
+      e.preventDefault();
+      Toast.warn('⚠️ ممنوع', 'الصور محمية');
+      return false;
+    }
+  });
+
+  // 2) منع السحب
+  document.addEventListener('dragstart', (e) => {
+    const img = e.target.closest('img');
+    if (img) {
+      e.preventDefault();
+      return false;
+    }
+  });
+
+  // 3) منع الضغط الطويل (Long Press) على الموبايل
+  let longPressTimer = null;
+
+  document.addEventListener('touchstart', (e) => {
+    const img = e.target.closest('img');
+    const card = e.target.closest('.course-card-student__cover');
+    if (!img && !card) return;
+
+    longPressTimer = setTimeout(() => {
+      e.preventDefault();
+      Toast.warn('⚠️ ممنوع', 'الصور محمية');
+    }, 500);
+  }, { passive: false });
+
+  document.addEventListener('touchend', () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  });
+
+  document.addEventListener('touchmove', () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  });
+
+  // 4) منع Ctrl+S / Ctrl+P / Ctrl+U + F12
+  document.addEventListener('keydown', (e) => {
+    // F12
+    if (e.key === 'F12') {
+      e.preventDefault();
+      Toast.warn('⚠️ ممنوع', 'أدوات المطور معطلة');
+      return false;
+    }
+
+    // Ctrl + Shift + I / J / C
+    if (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) {
+      e.preventDefault();
+      Toast.warn('⚠️ ممنوع', 'أدوات المطور معطلة');
+      return false;
+    }
+
+    // Ctrl + U (view source)
+    if (e.ctrlKey && e.key.toUpperCase() === 'U') {
+      e.preventDefault();
+      return false;
+    }
+
+    // Ctrl + S (save)
+    if (e.ctrlKey && e.key.toUpperCase() === 'S') {
+      e.preventDefault();
+      Toast.warn('⚠️ ممنوع', 'الحفظ معطل');
+      return false;
+    }
+
+    // Ctrl + P (print)
+    if (e.ctrlKey && e.key.toUpperCase() === 'P') {
+      e.preventDefault();
+      Toast.warn('⚠️ ممنوع', 'الطباعة معطلة');
+      return false;
+    }
+
+    // Print Screen
+    if (e.key === 'PrintScreen' || e.keyCode === 44) {
+      e.preventDefault();
+      Toast.warn('⚠️ ممنوع', 'التصوير معطل');
+      return false;
+    }
+  });
+
+  // 5) منع النسخ
+  document.addEventListener('copy', (e) => {
+    if (e.target.closest('img') || e.target.closest('.course-card-student__cover')) {
+      e.preventDefault();
+      return false;
+    }
+  });
+
+  // 6) منع تحديد النص في الكورسات
+  document.querySelectorAll('.course-card-student__cover').forEach(el => {
+    el.style.userSelect = 'none';
+    el.style.webkitUserSelect = 'none';
+    el.style.webkitTouchCallout = 'none';
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
    الكورسات
    ═══════════════════════════════════════════════════════════════ */
 async function loadCourses() {
@@ -166,7 +273,11 @@ function courseCardStudent(course, enrollment) {
   else cardCls += ' course-card-student--locked';
 
   const coverHtml = course.cover_url
-    ? `<img src="${escapeHtml(course.cover_url)}" alt="${escapeHtml(course.title)}" loading="lazy">`
+    ? `<img src="${escapeHtml(course.cover_url)}" alt="${escapeHtml(course.title)}" loading="lazy" draggable="false">
+       <div class="course-cover-watermark">
+         <i class="fa-solid fa-shield-halved"></i>
+         ${escapeHtml(currentProfile.full_name || '')}
+       </div>`
     : `<div class="course-card-student__cover-fallback"><i class="fa-solid fa-book-open"></i></div>`;
 
   let actionsHtml = '';
@@ -993,6 +1104,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (modal && !modal.hidden) closeStudentAttemptModal();
     }
   });
+
+  // 🛡️ تفعيل الحماية
+  setupImageProtection();
 
   // تحميل
   loadStats();
