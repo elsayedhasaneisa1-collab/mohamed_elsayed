@@ -1,16 +1,7 @@
-/* ═══════════════════════════════════════════════════════════════
-   course.css — صفحة الكورس
-   منصة الأستاذ محمد عيسى
-   ═══════════════════════════════════════════════════════════════ */
-
 body.page-course{
   padding-bottom:calc(40px + env(safe-area-inset-bottom, 0));
   min-height:100dvh;
 }
-
-/* ═══════════════════════════════════════════════════════════════
-   الهيدر
-   ═══════════════════════════════════════════════════════════════ */
 .course-top{
   position:sticky;top:0;z-index:60;
   background:rgba(9,9,9,.94);
@@ -64,9 +55,7 @@ body.page-course{
   transform:rotate(180deg);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   شاشة التحميل
-   ═══════════════════════════════════════════════════════════════ */
+
 .course-loading{
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
@@ -75,9 +64,7 @@ body.page-course{
 }
 .course-loading p{color:var(--muted);font-size:.9rem;}
 
-/* ═══════════════════════════════════════════════════════════════
-   شاشة "غير مصرح"
-   ═══════════════════════════════════════════════════════════════ */
+
 .course-locked{
   min-height:calc(100dvh - 66px);
   display:grid;place-items:center;
@@ -122,16 +109,13 @@ body.page-course{
 .course-locked__actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
 .course-locked__actions .btn{flex:1;min-width:140px;}
 
-/* ═══════════════════════════════════════════════════════════════
-   الغلاف الرئيسي
-   ═══════════════════════════════════════════════════════════════ */
+
 .course-shell{
   max-width:900px;margin-inline:auto;
   padding:20px 16px 40px;
   position:relative;z-index:1;
 }
 
-/* ─── Hero ─── */
 .course-hero{
   border-radius:var(--r-lg);
   overflow:hidden;
@@ -244,7 +228,6 @@ body.page-course{
 .course-folders__title i{color:var(--gold);}
 .course-folders__list{display:flex;flex-direction:column;gap:14px;}
 
-/* ─── كارت الفولدر ─── */
 .cfolder{
   border-radius:var(--r-md);
   background:linear-gradient(160deg,rgba(255,255,255,.04),rgba(255,255,255,.015));
@@ -309,7 +292,6 @@ body.page-course{
   padding:12px;display:flex;flex-direction:column;gap:8px;
 }
 
-/* ─── كارت الدرس ─── */
 .citem{
   display:flex;align-items:center;gap:12px;
   padding:13px 14px;border-radius:12px;
@@ -374,7 +356,7 @@ body.page-course{
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   ⭐ المشغل الجديد — تصميم أنيق
+   ⭐ المشغل الجديد
    ═══════════════════════════════════════════════════════════════ */
 
 .modal__box--player{
@@ -386,7 +368,6 @@ body.page-course{
   background:#0a0a0a;
 }
 
-/* ─── رأس المشغل ─── */
 .player-header{
   display:flex;align-items:flex-start;gap:12px;
   padding:12px 16px;
@@ -397,8 +378,7 @@ body.page-course{
 .player-header__info{flex:1;min-width:0;}
 .player-header__info h3{
   font-size:.95rem;font-weight:800;margin-bottom:3px;
-  font-family:'Cairo',sans-serif;
-  color:#fff;
+  font-family:'Cairo',sans-serif;color:#fff;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .player-header__info p{
@@ -410,9 +390,7 @@ body.page-course{
   width:36px;height:36px;border-radius:50%;
   display:grid;place-items:center;
   background:rgba(255,255,255,.08);
-  color:#fff;
-  font-size:.95rem;
-  border:0;
+  color:#fff;font-size:.95rem;border:0;
   transition:.3s var(--ease);
 }
 .player-close:hover{
@@ -445,16 +423,17 @@ body.page-course{
   pointer-events:none;
 }
 
-/* 🛡️ طبقة منع اللمس */
+/* 🛡️ طبقة منع اللمس + التحكم */
 .player-shield{
   position:absolute;
   inset:0;
   z-index:10;
   background:transparent;
   pointer-events:auto;
-  cursor:default;
+  cursor:pointer;
   -webkit-touch-callout:none;
   user-select:none;
+  touch-action:manipulation;   /* ⭐ مهم */
 }
 
 /* 🔴 Watermark */
@@ -501,7 +480,7 @@ body.page-course{
 }
 @keyframes fade{from{opacity:0;}to{opacity:1;}}
 
-/* 🎬 أزرار التحكم في الوسط */
+/* 🎬 أزرار التحكم */
 .player-controls{
   position:absolute;
   inset:0;
@@ -515,12 +494,8 @@ body.page-course{
   transition:opacity .3s var(--ease);
   opacity:0;
 }
-.player-controls.is-visible{
-  opacity:1;
-}
-.player-controls.is-visible .player-ctrl{
-  pointer-events:auto;
-}
+.player-controls.is-visible{opacity:1;}
+.player-controls.is-visible .player-ctrl{pointer-events:auto;}
 
 .player-ctrl{
   width:60px;height:60px;
@@ -541,9 +516,7 @@ body.page-course{
   background:rgba(255,255,255,.15);
   transform:scale(1.1);
 }
-.player-ctrl:active{
-  transform:scale(.95);
-}
+.player-ctrl:active{transform:scale(.95);}
 
 .player-ctrl--play{
   width:72px;height:72px;
@@ -552,9 +525,7 @@ body.page-course{
   font-size:1.4rem;
 }
 
-.player-ctrl--skip{
-  font-size:1.05rem;
-}
+.player-ctrl--skip{font-size:1.05rem;}
 .player-ctrl--skip span{
   position:absolute;
   font-size:.55rem;
@@ -585,6 +556,7 @@ body.page-course{
   cursor:pointer;
   padding-inline-start:6px;
   transition:transform .3s var(--ease);
+  pointer-events:auto;
 }
 .player-big-play:hover{
   transform:scale(1.1);
@@ -670,9 +642,7 @@ body.page-course{
   border-color:rgba(255,255,255,.2);
   transform:translateY(-2px);
 }
-.player-extra-btn:active{
-  transform:scale(.95);
-}
+.player-extra-btn:active{transform:scale(.95);}
 
 /* ═══════════════════════════════════════════════════════════════
    Modal اللينك
@@ -727,7 +697,7 @@ body.page-course{
 .link-modal__warning i{font-size:.75rem;}
 
 /* ═══════════════════════════════════════════════════════════════
-   التحذير (فقدان التركيز)
+   التحذير
    ═══════════════════════════════════════════════════════════════ */
 .cheat-warning{
   position:fixed;inset:0;z-index:9999;
@@ -774,7 +744,6 @@ body.page-course{
   .citem__icon{width:34px;height:34px;font-size:.85rem;}
   .citem__body h5{font-size:.85rem;}
 
-  /* المشغل على الموبايل */
   .modal__box--player{
     max-width:100%;
     max-height:100dvh;
@@ -786,21 +755,11 @@ body.page-course{
   .player-header__info h3{font-size:.88rem;}
   .player-header__info p{display:none;}
 
-  .player-ctrl{
-    width:52px;height:52px;
-    font-size:.95rem;
-  }
-  .player-ctrl--play{
-    width:64px;height:64px;
-    font-size:1.25rem;
-  }
+  .player-ctrl{width:52px;height:52px;font-size:.95rem;}
+  .player-ctrl--play{width:64px;height:64px;font-size:1.25rem;}
   .player-ctrl--skip span{font-size:.5rem;}
 
-  .player-big-play{
-    width:72px;height:72px;
-    font-size:1.5rem;
-  }
-
+  .player-big-play{width:72px;height:72px;font-size:1.5rem;}
   .player-watermark{font-size:13px;}
 
   .player-progress{padding:8px 12px 4px;}

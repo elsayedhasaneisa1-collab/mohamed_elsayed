@@ -1,9 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════
-   course.js — صفحة الكورس
-   منصة الأستاذ محمد عيسى
-   مشغل YouTube مخصص + حماية قوية
-   ═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
 let currentUser = null;
@@ -14,7 +8,6 @@ let folders = [];
 let folderItemsMap = {};
 let completedItems = new Set();
 
-/* ─── حالة المشغل ─── */
 let ytPlayer = null;
 let ytReady = false;
 let isPlaying = false;
@@ -25,6 +18,7 @@ let watermarkTimer = null;
 let controlsTimer = null;
 let isSeeking = false;
 let blackoutActive = false;
+let lastClickTime = 0;
 
 /* ═══════════════════════════════════════════════════════════════
    التهيئة
@@ -133,7 +127,7 @@ async function loadCourse(courseId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   رندر الكورس
+   رندر
    ═══════════════════════════════════════════════════════════════ */
 function renderCourse() {
   const course = currentCourse;
@@ -243,9 +237,6 @@ function itemHtml(item) {
   `;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   أحداث الفولدرات
-   ═══════════════════════════════════════════════════════════════ */
 function bindFolderEvents() {
   $$('.cfolder__head').forEach(head => {
     head.addEventListener('click', () => {
@@ -262,9 +253,6 @@ function bindFolderEvents() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   فتح عنصر
-   ═══════════════════════════════════════════════════════════════ */
 function openItem(itemId, type) {
   let item = null;
   for (const arr of Object.values(folderItemsMap)) {
@@ -285,7 +273,7 @@ function openItem(itemId, type) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   مشغل YouTube المخصص
+   مشغل YouTube
    ═══════════════════════════════════════════════════════════════ */
 function openVideoPlayer(item) {
   currentPlayingItem = item;
@@ -373,12 +361,20 @@ function createYTPlayer(videoId, container) {
       playsinline: 1,
       disablekb: 1,
       cc_load_policy: 0,
+      cc_lang_pref: 'none',
+      hl: 'ar',
       origin: window.location.origin
     },
     events: {
       onReady: (e) => {
         ytReady = true;
         updateTotalTime(e.target.getDuration());
+
+        try {
+          e.target.unloadModule('captions');
+          e.target.unloadModule('cc');
+        } catch (err) {}
+
         e.target.playVideo();
       },
       onStateChange: (e) => {
@@ -427,37 +423,28 @@ function updatePlayBtn(playing) {
 }
 
 function showBigPlay() {
-  const bigPlay = document.getElementById('videoBigPlay');
-  if (bigPlay) bigPlay.hidden = false;
+  const el = document.getElementById('videoBigPlay');
+  if (el) el.hidden = false;
 }
-
 function hideBigPlay() {
-  const bigPlay = document.getElementById('videoBigPlay');
-  if (bigPlay) bigPlay.hidden = true;
+  const el = document.getElementById('videoBigPlay');
+  if (el) el.hidden = true;
 }
 
-/* ─── إظهار / إخفاء الأزرار ─── */
 function showControls() {
   const controls = document.getElementById('playerControls');
   if (controls) controls.classList.add('is-visible');
-
   if (controlsTimer) clearTimeout(controlsTimer);
-
   if (isPlaying) {
     controlsTimer = setTimeout(() => hideControls(), 3000);
   }
 }
-
-function showControlsTemporarily() {
-  showControls();
-}
-
+function showControlsTemporarily() { showControls(); }
 function hideControls() {
   const controls = document.getElementById('playerControls');
   if (controls) controls.classList.remove('is-visible');
 }
 
-/* ─── أزرار التحكم ─── */
 function togglePlay() {
   if (!ytPlayer || !ytReady || blackoutActive) return;
   if (isPlaying) {
@@ -516,12 +503,10 @@ function toggleFullscreen() {
   }
 }
 
-/* ─── شريط التقدم ─── */
 function startProgressTracker() {
   stopProgressTracker();
   progressInterval = setInterval(updateProgressUI, 250);
 }
-
 function stopProgressTracker() {
   if (progressInterval) {
     clearInterval(progressInterval);
@@ -607,71 +592,49 @@ function stopVideoWatermark() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   🛡️ الحماية
+   الحماية
    ═══════════════════════════════════════════════════════════════ */
 function setupProtection() {
   document.addEventListener('contextmenu', e => e.preventDefault());
-
-  document.addEventListener('copy', e => {
-    if (currentPlayingItem) e.preventDefault();
-  });
-
+  document.addEventListener('copy', e => { if (currentPlayingItem) e.preventDefault(); });
   document.addEventListener('cut', e => e.preventDefault());
-
-  document.addEventListener('paste', e => {
-    if (currentPlayingItem) e.preventDefault();
-  });
-
-  document.addEventListener('keydown', handleKeyDown);
-
+  document.addEventListener('paste', e => { if (currentPlayingItem) e.preventDefault(); });
   document.addEventListener('dragstart', e => e.preventDefault());
-
-  document.addEventListener('selectstart', e => {
-    if (currentPlayingItem) e.preventDefault();
-  });
+  document.addEventListener('selectstart', e => { if (currentPlayingItem) e.preventDefault(); });
+  document.addEventListener('keydown', handleKeyDown);
 }
 
 function handleKeyDown(e) {
-  // Print Screen
   if (e.key === 'PrintScreen' || e.keyCode === 44) {
     e.preventDefault();
     if (currentPlayingItem) triggerBlackout('محاولة تصوير');
     return;
   }
 
-  // Windows + Shift + S
   if (e.metaKey && e.shiftKey && e.key.toUpperCase() === 'S') {
     e.preventDefault();
     if (currentPlayingItem) triggerBlackout('محاولة تصوير');
     return;
   }
 
-  // F12
-  if (e.key === 'F12') {
-    if (currentPlayingItem) e.preventDefault();
-    return;
-  }
+  if (e.key === 'F12') { if (currentPlayingItem) e.preventDefault(); return; }
 
-  // Ctrl + Shift + I / J / C
   if (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) {
     if (currentPlayingItem) e.preventDefault();
     return;
   }
 
-  // Ctrl + U / S / P
   if (e.ctrlKey && ['U','S','P'].includes(e.key.toUpperCase())) {
     if (currentPlayingItem) e.preventDefault();
     return;
   }
 
-  // Space
   if (e.code === 'Space' && currentPlayingItem) {
     e.preventDefault();
     togglePlay();
     return;
   }
 
-  // Escape
   if (e.key === 'Escape') {
     const vModal = document.getElementById('videoPlayerModal');
     const lModal = document.getElementById('linkModal');
@@ -700,21 +663,16 @@ function triggerBlackout(reason) {
   }, 2500);
 }
 
-/* ─── مراقبة التركيز ─── */
 function handleVisibilityChange() {
   if (document.hidden && currentPlayingItem) {
-    if (ytPlayer && ytReady) {
-      try { ytPlayer.pauseVideo(); } catch (e) {}
-    }
+    if (ytPlayer && ytReady) { try { ytPlayer.pauseVideo(); } catch (e) {} }
     showBlurWarning('خروج من الشاشة');
   }
 }
 
 function handleBlur() {
   if (currentPlayingItem && !blackoutActive) {
-    if (ytPlayer && ytReady) {
-      try { ytPlayer.pauseVideo(); } catch (e) {}
-    }
+    if (ytPlayer && ytReady) { try { ytPlayer.pauseVideo(); } catch (e) {} }
     showBlurWarning('فقدان التركيز');
   }
 }
@@ -723,7 +681,6 @@ function showBlurWarning(reason) {
   const warning = document.getElementById('cheatWarning');
   const msg = document.getElementById('cheatMsg');
   if (!warning) return;
-
   if (msg) msg.textContent = reason || 'تم رصد خروجك من الشاشة';
   warning.hidden = false;
 }
@@ -753,10 +710,7 @@ function closeVideoPlayer() {
   stopProgressTracker();
   stopVideoWatermark();
 
-  if (controlsTimer) {
-    clearTimeout(controlsTimer);
-    controlsTimer = null;
-  }
+  if (controlsTimer) { clearTimeout(controlsTimer); controlsTimer = null; }
 
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
@@ -805,10 +759,7 @@ async function markItemCompleted(itemId) {
     if (existing) {
       await supabaseClient
         .from('lesson_progress')
-        .update({
-          is_completed: true,
-          completed_at: new Date().toISOString()
-        })
+        .update({ is_completed: true, completed_at: new Date().toISOString() })
         .eq('id', existing.id);
     } else {
       await supabaseClient.from('lesson_progress').insert({
@@ -852,55 +803,103 @@ function updateProgressSection() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   🎯 أحداث الفيديو (ضغطة واحدة فقط)
+   ═══════════════════════════════════════════════════════════════ */
+function setupVideoControls() {
+  const shield = document.getElementById('playerShield');
+  const stage = document.querySelector('.player-stage');
+
+  if (!shield || !stage) return;
+
+  // ⭐ دالة التحكم الأساسية
+  function handleVideoTap(e) {
+    if (blackoutActive) return;
+
+    // منع النقر المزدوج
+    const now = Date.now();
+    if (now - lastClickTime < 300) return;
+    lastClickTime = now;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // لو الفيديو واقف → تشغيل
+    if (!isPlaying) {
+      togglePlay();
+      return;
+    }
+
+    // الحصول على مكان النقر
+    let clientX = 0;
+    if (e.changedTouches && e.changedTouches.length) {
+      clientX = e.changedTouches[0].clientX;
+    } else if (e.touches && e.touches.length) {
+      clientX = e.touches[0].clientX;
+    } else {
+      clientX = e.clientX;
+    }
+
+    const rect = stage.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const half = rect.width / 2;
+
+    // RTL: يمين = رجوع، يسار = تقدّم
+    if (x > half) {
+      seekBackward();
+    } else {
+      seekForward();
+    }
+
+    showControlsTemporarily();
+  }
+
+  // للكمبيوتر
+  shield.addEventListener('click', handleVideoTap);
+
+  // للموبايل (touchend أسرع من click)
+  shield.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    handleVideoTap(e);
+  }, { passive: false });
+}
+
+/* ═══════════════════════════════════════════════════════════════
    الأحداث
    ═══════════════════════════════════════════════════════════════ */
 function setupEventListeners() {
-  // إغلاق المشغل
   document.getElementById('closeVideoPlayer')?.addEventListener('click', closeVideoPlayer);
 
-  // إغلاق اللينك
   document.getElementById('closeLinkModal')?.addEventListener('click', closeLinkModal);
   document.getElementById('linkModal')?.addEventListener('click', (e) => {
     if (e.target.classList.contains('modal__backdrop')) closeLinkModal();
   });
 
-  // أزرار التحكم
-  document.getElementById('videoPlayBtn')?.addEventListener('click', togglePlay);
-  document.getElementById('videoBigPlay')?.addEventListener('click', togglePlay);
-  document.getElementById('videoBackBtn')?.addEventListener('click', seekBackward);
-  document.getElementById('videoForwardBtn')?.addEventListener('click', seekForward);
-  document.getElementById('videoMuteBtn')?.addEventListener('click', toggleMute);
-  document.getElementById('videoFullscreenBtn')?.addEventListener('click', toggleFullscreen);
+  document.getElementById('videoPlayBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePlay();
+  });
+  document.getElementById('videoBigPlay')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePlay();
+  });
+  document.getElementById('videoBackBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekBackward();
+  });
+  document.getElementById('videoForwardBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekForward();
+  });
+  document.getElementById('videoMuteBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMute();
+  });
+  document.getElementById('videoFullscreenBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFullscreen();
+  });
 
-  // الشيلد (منع اللمس)
-  const shield = document.getElementById('playerShield');
-  const stage = document.querySelector('.player-stage');
-
-  if (shield) {
-    shield.addEventListener('click', (e) => {
-      // لو الفيديو واقف
-      if (!isPlaying) {
-        togglePlay();
-        return;
-      }
-
-      // لو شغال → نلمس على يمين/يسار
-      const rect = stage.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const half = rect.width / 2;
-
-      // RTL: يمين الفيديو = أول الفيديو (رجوع)
-      if (x > half) {
-        seekBackward();
-      } else {
-        seekForward();
-      }
-
-      showControlsTemporarily();
-    });
-  }
-
-  // شريط التقدم — النقر والسحب
+  /* ─── شريط التقدم ─── */
   const progressBar = document.getElementById('videoProgressBar');
   if (progressBar) {
     let isDragging = false;
@@ -949,7 +948,6 @@ function setupEventListeners() {
     document.addEventListener('touchend', onEnd);
   }
 
-  // "تم مشاهدة الدرس"
   document.getElementById('markCompletedBtn')?.addEventListener('click', () => {
     if (currentPlayingItem) {
       markItemCompleted(currentPlayingItem.id);
@@ -958,12 +956,10 @@ function setupEventListeners() {
     }
   });
 
-  // تحديث
   document.getElementById('courseRefreshBtn')?.addEventListener('click', () => {
     window.location.reload();
   });
 
-  // التحذير — زر المتابعة
   document.getElementById('resumeBtn')?.addEventListener('click', () => {
     hideBlurWarning();
     if (ytPlayer && ytReady) {
@@ -971,11 +967,9 @@ function setupEventListeners() {
     }
   });
 
-  // مراقبة التركيز
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('blur', handleBlur);
 
-  // Fullscreen change
   document.addEventListener('fullscreenchange', () => {
     const btn = document.getElementById('videoFullscreenBtn');
     if (btn) {
@@ -984,6 +978,9 @@ function setupEventListeners() {
         : '<i class="fa-solid fa-expand"></i>';
     }
   });
+
+  // ⭐ تفعيل التحكم في الفيديو
+  setupVideoControls();
 
   // تفعيل الحماية
   setupProtection();
