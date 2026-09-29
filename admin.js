@@ -2413,7 +2413,7 @@ async function downloadAllPdf() {
   const ok = await UI.confirm({
     type: 'info',
     title: 'تنزيل Excel؟',
-    message: `سيتم تنزيل تقرير Excel فيه ${list.length} محاولة.`,
+    message: `سيتم تنزيل تقرير Excel فيه ملخص لكل طالب.`,
     confirmText: 'تنزيل',
     cancelText: 'إلغاء'
   });
@@ -2422,7 +2422,7 @@ async function downloadAllPdf() {
   showProgress('جارٍ التحضير...', `0 / ${list.length}`);
 
   try {
-    const rows = [];
+    const studentsMap = {};
     let done = 0;
 
     for (const attempt of list) {
@@ -2430,8 +2430,7 @@ async function downloadAllPdf() {
         .from('answers')
         .select(`
           id, selected_choice_id, essay_text, marks_awarded,
-          questions:question_id (question_text, question_type, marks, order_index),
-          selected_choice:selected_choice_id (choice_text, is_correct)
+          questions:question_id (id, question_text, question_type, marks, order_index)
         `)
         .eq('attempt_id', attempt.id);
 
@@ -2469,27 +2468,30 @@ async function downloadAllPdf() {
       });
 
       const student = attempt.profiles || {};
-      const exam = attempt.exams || {};
-      const pct = attempt.total_marks ? Math.round((attempt.score / attempt.total_marks) * 100) : 0;
-      const time = calcDuration(attempt.started_at, attempt.submitted_at || attempt.expires_at);
-      const kindLabel = exam.kind === 'assignment' ? 'واجب' : 'امتحان';
+      const studentId = student.id || attempt.id;
 
-      rows.push({
-        'اسم الطالب': student.full_name || '—',
-        'رقم الطالب': student.phone || '—',
-        'رقم ولي الأمر': student.parent_phone || '—',
-        'الصف': student.grade || '—',
-        'النوع': kindLabel,
-        'الامتحان': exam.title || '—',
-        'الدرجة': attempt.score ?? 0,
-        'الدرجة الكلية': attempt.total_marks ?? 0,
-        'النسبة %': pct,
-        'صح': correctCount,
-        'خطأ': wrongCount,
-        'لم يجب': unansweredCount,
-        'الوقت المستغرق': time,
-        'تاريخ التسليم': formatDate(attempt.submitted_at)
-      });
+      if (!studentsMap[studentId]) {
+        studentsMap[studentId] = {
+          name: student.full_name || '—',
+          phone: student.phone || '—',
+          parentPhone: student.parent_phone || '—',
+          grade: student.grade || '—',
+          score: 0,
+          totalMarks: 0,
+          correct: 0,
+          wrong: 0,
+          unanswered: 0,
+          attemptsCount: 0
+        };
+      }
+
+      const s = studentsMap[studentId];
+      s.score += attempt.score ?? 0;
+      s.totalMarks += attempt.total_marks ?? 0;
+      s.correct += correctCount;
+      s.wrong += wrongCount;
+      s.unanswered += unansweredCount;
+      s.attemptsCount++;
 
       done++;
       updateProgress((done / list.length) * 100, `${done} / ${list.length}`);
@@ -2497,12 +2499,27 @@ async function downloadAllPdf() {
 
     updateProgress(95, 'جارٍ إنشاء الملف...');
 
+    const rows = Object.values(studentsMap).map(s => {
+      const pct = s.totalMarks ? Math.round((s.score / s.totalMarks) * 100) : 0;
+      return {
+        'اسم الطالب': s.name,
+        'رقم الطالب': s.phone,
+        'رقم ولي الأمر': s.parentPhone,
+        'الصف': s.grade,
+        'الدرجة': s.score,
+        'من': s.totalMarks,
+        'النسبة %': pct,
+        'صح': s.correct,
+        'خطأ': s.wrong,
+        'لم يجب': s.unanswered
+      };
+    });
+
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      { wch: 28 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 10 },
-      { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 10 },
-      { wch: 8 }, { wch: 8 }, { wch: 10 },
-      { wch: 15 }, { wch: 22 }
+      { wch: 28 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 8 }, { wch: 8 }, { wch: 10 }
     ];
 
     const wb = XLSX.utils.book_new();
@@ -2525,7 +2542,7 @@ async function downloadAllPdf() {
 
     setTimeout(() => {
       hideProgress();
-      Toast.success('تم التنزيل ✅', `اتنزل ملف Excel فيه ${list.length} محاولة`);
+      Toast.success('تم التنزيل ✅', `اتنزل ملف Excel فيه ${Object.keys(studentsMap).length} طالب`);
       renderPdfList();
       updateDeleteBtn();
       loadStats();
