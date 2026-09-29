@@ -475,15 +475,16 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   backdrop-filter:blur(9px);
   -webkit-backdrop-filter:blur(9px);
   animation:fade .3s var(--ease);
+  display:grid;
+  place-items:center;
+  padding:14px;
+  overflow-y:auto;
 }
 .custom-select-overlay[hidden]{display:none;}
 
 .custom-select-menu{
-  position:fixed;
-  top:50%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  z-index:99999;
+  position:relative;
+  z-index:1;
   width:min(92vw, 460px);
   max-height:80vh;
   overflow-y:auto;
