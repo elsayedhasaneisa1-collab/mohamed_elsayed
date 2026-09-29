@@ -471,20 +471,15 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   position:fixed;
   inset:0;
   z-index:99998;
-  background:rgba(4,4,4,.78);
-  backdrop-filter:blur(9px);
-  -webkit-backdrop-filter:blur(9px);
-  animation:fade .3s var(--ease);
-  display:grid;
-  place-items:center;
-  padding:14px;
-  overflow-y:auto;
+  background:rgba(0,0,0,.85);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
 }
-.custom-select-overlay[hidden]{display:none;}
+.custom-select-overlay[hidden]{display:none !important;}
 
 .custom-select-menu{
-  position:relative;
-  z-index:1;
   width:min(92vw, 460px);
   max-height:80vh;
   overflow-y:auto;
@@ -492,16 +487,12 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   border-radius:22px;
   background:#151515;
   border:1px solid var(--gold);
-  box-shadow:
-    0 40px 90px -30px #000,
-    0 0 0 1px rgba(230,184,0,.2),
-    0 0 100px -30px rgba(230,184,0,.5);
+  box-shadow:0 40px 90px -30px #000, 0 0 100px -30px rgba(230,184,0,.5);
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:9px;
-  animation:pop .38s var(--ease);
 }
-.custom-select-menu[hidden]{display:none;}
+.custom-select-menu[hidden]{display:none !important;}
 
 .custom-select-menu::before{
   content:"اختر الصف الدراسي";
@@ -524,32 +515,27 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   gap:8px;
   padding:14px 10px;
   border-radius:14px;
-  background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+  background:rgba(255,255,255,.04);
   border:1px solid var(--line-2);
   color:var(--text-2);
   font-size:.86rem;
   font-weight:600;
   cursor:pointer;
-  transition:.28s var(--ease);
-  position:relative;
   text-align:center;
   user-select:none;
   min-height:76px;
+  transition:.28s var(--ease);
+  position:relative;
 }
 .custom-select-menu__item:hover{
-  background:linear-gradient(160deg,rgba(230,184,0,.12),rgba(230,184,0,.04));
+  background:rgba(230,184,0,.12);
   border-color:var(--gold);
   color:var(--gold-2);
-  transform:translateY(-3px);
-  box-shadow:0 10px 24px -12px rgba(230,184,0,.7);
 }
 .custom-select-menu__item.is-selected{
-  background:linear-gradient(160deg,rgba(230,184,0,.22),rgba(230,184,0,.08));
+  background:rgba(230,184,0,.22);
   border-color:var(--gold);
   color:var(--gold-2);
-  box-shadow:
-    inset 0 0 20px rgba(230,184,0,.15),
-    0 8px 22px -12px rgba(230,184,0,.8);
 }
 .custom-select-menu__item.is-selected::after{
   content:"\f00c";
@@ -558,19 +544,15 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   top:6px;inset-inline-end:6px;
   width:18px;height:18px;border-radius:50%;
   display:grid;place-items:center;
-  background:linear-gradient(135deg,var(--gold-2),var(--gold-deep));
+  background:var(--gold);
   color:#14110a;
   font-size:.6rem;
-  animation:popIn .3s var(--ease);
 }
-
 .custom-select-menu__radio{
-  flex-shrink:0;
   width:22px;height:22px;border-radius:50%;
   border:2px solid var(--muted);
   display:grid;place-items:center;
   transition:.25s var(--ease);
-  position:relative;
 }
 .custom-select-menu__radio::after{
   content:"";width:10px;height:10px;border-radius:50%;
@@ -578,17 +560,12 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   transform:scale(0);
   transition:.25s var(--ease);
 }
-.custom-select-menu__item:hover .custom-select-menu__radio{
-  border-color:var(--gold-2);
-}
 .custom-select-menu__item.is-selected .custom-select-menu__radio{
   border-color:var(--gold);
-  background:rgba(230,184,0,.15);
 }
 .custom-select-menu__item.is-selected .custom-select-menu__radio::after{
   transform:scale(1);
 }
-
 .custom-select-menu__item > span:last-child{
   display:block;
   line-height:1.3;
