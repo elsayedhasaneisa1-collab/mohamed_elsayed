@@ -469,9 +469,12 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
 
 .custom-select-overlay{
   position:fixed;
-  inset:0;
-  z-index:99998;
-  background:#000;
+  top:0;
+  left:0;
+  width:100vw;
+  height:100vh;
+  z-index:2147483646;
+  background:#0a0a0a;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -480,6 +483,8 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
 .custom-select-overlay[hidden]{display:none !important;}
 
 .custom-select-menu{
+  position:relative;
+  z-index:1;
   width:min(92vw, 460px);
   max-height:80vh;
   overflow-y:auto;
@@ -627,12 +632,9 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
 .modal[hidden]{display:none}
 .modal__backdrop{
   position:fixed;inset:0;
-  background:rgba(4,4,4,.78);
-  backdrop-filter:blur(9px);
-  -webkit-backdrop-filter:blur(9px);
-  animation:fade .3s var(--ease);
+  background:rgba(4,4,4,.92);
 }
-.modal__backdrop--solid{background:rgba(4,4,4,.94)}
+.modal__backdrop--solid{background:rgba(4,4,4,.98)}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 .modal__box{
   position:relative;width:100%;max-width:560px;
@@ -675,8 +677,7 @@ textarea.field__input{min-height:104px;resize:vertical;line-height:1.7}
   pointer-events:auto;
   display:flex;align-items:flex-start;gap:11px;
   padding:13px 15px;border-radius:var(--r-md);
-  background:rgba(16,16,16,.96);
-  backdrop-filter:blur(14px);
+  background:rgba(16,16,16,.98);
   border:1px solid var(--line-2);
   box-shadow:0 22px 46px -22px #000;
   animation:toastIn .4s var(--ease);

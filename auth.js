@@ -260,31 +260,42 @@ function initSignupPage() {
       document.body.appendChild(overlay);
     }
 
+    if (gradeMenu.parentNode !== overlay) {
+      overlay.appendChild(gradeMenu);
+    }
+
     const openMenu = () => {
       gradeMenu.hidden = false;
       overlay.hidden = false;
       gradeBtn.classList.add('is-open');
+      document.body.style.overflow = 'hidden';
     };
 
     const closeMenu = () => {
       gradeMenu.hidden = true;
       overlay.hidden = true;
       gradeBtn.classList.remove('is-open');
+      document.body.style.overflow = '';
     };
 
     gradeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      gradeMenu.hidden ? openMenu() : closeMenu();
+      e.preventDefault();
+      if (gradeMenu.hidden) openMenu();
+      else closeMenu();
     });
 
-    overlay.addEventListener('click', closeMenu);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeMenu();
+    });
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeMenu();
     });
 
     $$('.custom-select-menu__item', gradeMenu).forEach(item => {
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
         const value = item.dataset.value;
 
         gradeHidden.value = value;
