@@ -1,23 +1,15 @@
-/* ═══════════════════════════════════════════════════════════════
-   auth.js — منصة الأستاذ محمد عيسى
-   الدخول برقم الهاتف — الإيميل الداخلي = phone@manassa.local
-   ═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
-/* ─────────────── Supabase ─────────────── */
 const SUPABASE_URL = 'https://tqtaxueaemetovamewkf.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TIbJWVuDK8VNC07JxaL6KQ_XZdiO9Od';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* ─────────────── أدوات ─────────────── */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const GRADES_THANWY = ['الأول الثانوي', 'الثاني الثانوي', 'الثالث الثانوي'];
 
-/* ─────────────── Toast ─────────────── */
 const Toast = {
   stack: null,
   init() { this.stack = document.getElementById('toastStack'); },
@@ -61,7 +53,6 @@ const Toast = {
   info(t, m)    { this.show('info', t, m); }
 };
 
-/* ─────────────── أدوات ─────────────── */
 function setFieldState(field, state) {
   if (!field) return;
   field.classList.remove('is-invalid', 'is-ok', 'is-taken');
@@ -77,7 +68,6 @@ function setBtnLoading(btn, loading) {
   btn.disabled = loading;
 }
 
-/* ─────────────── Validators ─────────────── */
 const Validators = {
   username(v) {
     if (!v) return { ok: false, msg: 'من فضلك أدخل اسم المستخدم' };
@@ -122,7 +112,6 @@ function passwordStrength(pwd) {
 
 const STRENGTH_LABELS = ['—', 'ضعيف', 'متوسط', 'قوي', 'قوي جداً'];
 
-/* ─────────────── زرار العين ─────────────── */
 function initPasswordToggles() {
   $$('.field__toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -138,7 +127,6 @@ function initPasswordToggles() {
   });
 }
 
-/* ─────────────── Reveal ─────────────── */
 function initReveal() {
   requestAnimationFrame(() => {
     $$('.reveal').forEach(el => {
@@ -147,9 +135,6 @@ function initReveal() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   صفحة تسجيل الدخول — برقم الهاتف
-   ═══════════════════════════════════════════════════════════════ */
 function initLoginPage() {
   const form = document.getElementById('loginForm');
   if (!form) return;
@@ -243,9 +228,6 @@ function initLoginPage() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   صفحة التسجيل
-   ═══════════════════════════════════════════════════════════════ */
 function initSignupPage() {
   const form = document.getElementById('signupForm');
   if (!form) return;
@@ -264,7 +246,6 @@ function initSignupPage() {
   const strengthText     = document.getElementById('strengthText');
   const btn = document.getElementById('signupBtn');
 
-  /* ─── Custom Select للصف ─── */
   const gradeBtn = document.getElementById('gradeSelectBtn');
   const gradeLabel = document.getElementById('gradeSelectLabel');
   const gradeMenu = document.getElementById('gradeSelectMenu');
@@ -321,7 +302,6 @@ function initSignupPage() {
     });
   }
 
-  /* ─── تحقق فوري ─── */
   usernameInput?.addEventListener('input', () => {
     const res = Validators.username(usernameInput.value.trim());
     setFieldState(usernameInput.closest('.field'), usernameInput.value ? (res.ok ? 'ok' : 'invalid') : null);
@@ -387,7 +367,6 @@ function initSignupPage() {
     termsRow.classList.toggle('is-invalid', !termsCheckbox.checked);
   });
 
-  /* ─── الإرسال ─── */
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -425,7 +404,6 @@ function initSignupPage() {
     setBtnLoading(btn, true);
 
     try {
-      /* ─── 1) اسم المستخدم ─── */
       const { data: existingUser } = await supabaseClient
         .from('profiles')
         .select('id')
@@ -439,7 +417,6 @@ function initSignupPage() {
         return;
       }
 
-      /* ─── 2) رقم الهاتف ─── */
       const { data: existingPhone } = await supabaseClient
         .from('profiles')
         .select('id')
@@ -461,7 +438,6 @@ function initSignupPage() {
         return;
       }
 
-      /* ─── 3) إنشاء الحساب ─── */
       const email = `${phone}@manassa.local`;
 
       const { data: authData, error: authErr } = await supabaseClient.auth.signUp({
@@ -488,7 +464,6 @@ function initSignupPage() {
         return;
       }
 
-      /* ─── 4) تأكد من إنشاء البروفايل ─── */
       if (authData?.user?.id) {
         const { data: profileCheck } = await supabaseClient
           .from('profiles')
@@ -524,9 +499,6 @@ function initSignupPage() {
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   التهيئة
-   ═══════════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   Toast.init();
   initPasswordToggles();
