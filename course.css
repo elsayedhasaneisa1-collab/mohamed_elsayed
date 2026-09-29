@@ -367,7 +367,7 @@ body.page-course{
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   ⭐ المشغل الجديد
+   ⭐ المشغل الجديد — Auto-Hide
    ═══════════════════════════════════════════════════════════════ */
 
 .modal__box--player{
@@ -445,7 +445,6 @@ body.page-course{
   pointer-events:none;
 }
 
-/* طبقة منع اللمس */
 .player-shield{
   position:absolute;
   inset:0;
@@ -458,7 +457,6 @@ body.page-course{
   touch-action:manipulation;
 }
 
-/* Watermark */
 .player-watermark{
   position:absolute;
   z-index:8;
@@ -476,7 +474,6 @@ body.page-course{
   letter-spacing:.02em;
 }
 
-/* Blackout */
 .player-blackout{
   position:absolute;
   inset:0;
@@ -507,7 +504,6 @@ body.page-course{
 }
 @keyframes fade{from{opacity:0;}to{opacity:1;}}
 
-/* زر Play كبير */
 .player-big-play{
   position:absolute;
   inset:0;
@@ -532,12 +528,26 @@ body.page-course{
 }
 .player-big-play[hidden]{display:none;}
 
-/* ─── شريط التقدم ─── */
+/* ─── شريط التقدم (مع Auto-Hide) ─── */
 .player-progress{
   padding:12px 16px 8px;
   background:#0a0a0a;
   flex-shrink:0;
   border-top:1px solid rgba(255,255,255,.06);
+  transition:max-height .35s var(--ease),
+             opacity .35s var(--ease),
+             padding .35s var(--ease),
+             border-color .35s var(--ease);
+  max-height:80px;
+  overflow:hidden;
+  opacity:1;
+}
+.player-progress.is-hidden{
+  max-height:0;
+  opacity:0;
+  border-top-color:transparent;
+  padding-top:0;
+  padding-bottom:0;
 }
 .player-progress__bar{
   position:relative;
@@ -585,7 +595,7 @@ body.page-course{
   padding:0 2px;
 }
 
-/* ─── الأزرار تحت الفيديو ─── */
+/* ─── الأزرار (مع Auto-Hide) ─── */
 .player-actions{
   display:grid;
   grid-template-columns:repeat(6, 1fr);
@@ -593,6 +603,20 @@ body.page-course{
   background:#0a0a0a;
   border-top:1px solid rgba(255,255,255,.06);
   flex-shrink:0;
+  transition:max-height .35s var(--ease),
+             opacity .35s var(--ease),
+             padding .35s var(--ease),
+             border-color .35s var(--ease);
+  max-height:80px;
+  overflow:hidden;
+  opacity:1;
+}
+.player-actions.is-hidden{
+  max-height:0;
+  opacity:0;
+  border-top-color:transparent;
+  padding-top:0;
+  padding-bottom:0;
 }
 
 .player-action{
@@ -792,27 +816,4 @@ body.page-course{
 .modal__box--player:fullscreen .player-header,
 .modal__box--player:-webkit-full-screen .player-header{
   display:none;
-}
-.modal__box--player:fullscreen .player-progress,
-.modal__box--player:-webkit-full-screen .player-progress,
-.modal__box--player:fullscreen .player-actions,
-.modal__box--player:-webkit-full-screen .player-actions{
-  position:absolute;
-  bottom:0;
-  left:0;
-  right:0;
-  background:linear-gradient(transparent, rgba(0,0,0,.85));
-  border:0;
-  opacity:0;
-  transition:opacity .3s;
-}
-.modal__box--player:fullscreen .player-progress,
-.modal__box--player:-webkit-full-screen .player-progress{
-  bottom:64px;
-}
-.modal__box--player:fullscreen:hover .player-progress,
-.modal__box--player:-webkit-full-screen:hover .player-progress,
-.modal__box--player:fullscreen:hover .player-actions,
-.modal__box--player:-webkit-full-screen:hover .player-actions{
-  opacity:1;
 }

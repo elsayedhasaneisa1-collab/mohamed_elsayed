@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
    course.js — صفحة الكورس
    منصة الأستاذ محمد عيسى
-   مشغل YouTube مخصص — الأزرار تحت الفيديو
+   مشغل YouTube مخصص — Auto-Hide
    ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -23,6 +23,10 @@ let progressInterval = null;
 let watermarkTimer = null;
 let isSeeking = false;
 let blackoutActive = false;
+
+/* ⭐ Auto-Hide */
+let autoHideTimer = null;
+const AUTO_HIDE_DELAY = 3000; // 3 ثواني
 
 /* ═══════════════════════════════════════════════════════════════
    التهيئة
@@ -277,6 +281,49 @@ function openItem(itemId, type) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   ⭐ إظهار/إخفاء الأزرار تلقائياً
+   ═══════════════════════════════════════════════════════════════ */
+function showPlayerControls() {
+  const actions = document.querySelector('.player-actions');
+  const progress = document.querySelector('.player-progress');
+
+  if (actions) actions.classList.remove('is-hidden');
+  if (progress) progress.classList.remove('is-hidden');
+
+  if (autoHideTimer) {
+    clearTimeout(autoHideTimer);
+    autoHideTimer = null;
+  }
+
+  autoHideTimer = setTimeout(() => {
+    hidePlayerControls();
+  }, AUTO_HIDE_DELAY);
+}
+
+function hidePlayerControls() {
+  const actions = document.querySelector('.player-actions');
+  const progress = document.querySelector('.player-progress');
+
+  if (actions) actions.classList.add('is-hidden');
+  if (progress) progress.classList.add('is-hidden');
+}
+
+function togglePlayerControls() {
+  const actions = document.querySelector('.player-actions');
+  if (!actions) return;
+
+  if (actions.classList.contains('is-hidden')) {
+    showPlayerControls();
+  } else {
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
+      autoHideTimer = null;
+    }
+    hidePlayerControls();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
    مشغل YouTube
    ═══════════════════════════════════════════════════════════════ */
 function openVideoPlayer(item) {
@@ -291,6 +338,9 @@ function openVideoPlayer(item) {
   resetPlayerUI();
   loadYouTubePlayer(item.youtube_id);
   startVideoWatermark();
+
+  // ⭐ إظهار الأزرار أول مرة
+  showPlayerControls();
 }
 
 function resetPlayerUI() {
@@ -320,6 +370,12 @@ function resetPlayerUI() {
   if (progressThumb) progressThumb.style.insetInlineStart = '0%';
   if (timeCurrent) timeCurrent.textContent = '00:00';
   if (timeTotal) timeTotal.textContent = '00:00';
+
+  // ⭐ إظهار الأزرار
+  const actions = document.querySelector('.player-actions');
+  const progress = document.querySelector('.player-progress');
+  if (actions) actions.classList.remove('is-hidden');
+  if (progress) progress.classList.remove('is-hidden');
 }
 
 function loadYouTubePlayer(videoId) {
@@ -395,15 +451,18 @@ function handlePlayerStateChange(state) {
     updatePlayBtn(true);
     hideBigPlay();
     startProgressTracker();
+    showPlayerControls();
   } else if (state === 2) {
     isPlaying = false;
     updatePlayBtn(false);
     stopProgressTracker();
+    showPlayerControls();
   } else if (state === 0) {
     isPlaying = false;
     updatePlayBtn(false);
     stopProgressTracker();
     showBigPlay();
+    showPlayerControls();
 
     if (currentPlayingItem) {
       markItemCompleted(currentPlayingItem.id);
@@ -677,6 +736,11 @@ function hideBlurWarning() {
    إغلاق المشغل
    ═══════════════════════════════════════════════════════════════ */
 function closeVideoPlayer() {
+  if (autoHideTimer) {
+    clearTimeout(autoHideTimer);
+    autoHideTimer = null;
+  }
+
   const modal = document.getElementById('videoPlayerModal');
   modal.hidden = true;
   document.body.style.overflow = '';
@@ -797,28 +861,69 @@ function setupEventListeners() {
   });
 
   /* ─── أزرار التحكم ─── */
-  document.getElementById('videoPlayBtn')?.addEventListener('click', togglePlay);
-  document.getElementById('videoBackBtn')?.addEventListener('click', seekBackward);
-  document.getElementById('videoForwardBtn')?.addEventListener('click', seekForward);
-  document.getElementById('videoMuteBtn')?.addEventListener('click', toggleMute);
-  document.getElementById('videoFullscreenBtn')?.addEventListener('click', toggleFullscreen);
+  document.getElementById('videoPlayBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePlay();
+    showPlayerControls();
+  });
+  document.getElementById('videoBackBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekBackward();
+    showPlayerControls();
+  });
+  document.getElementById('videoForwardBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekForward();
+    showPlayerControls();
+  });
+  document.getElementById('videoMuteBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMute();
+    showPlayerControls();
+  });
+  document.getElementById('videoFullscreenBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFullscreen();
+    showPlayerControls();
+  });
 
   /* ─── زر Play كبير ─── */
-  document.getElementById('videoBigPlay')?.addEventListener('click', togglePlay);
+  document.getElementById('videoBigPlay')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePlay();
+  });
 
-  /* ─── اللمس على الفيديو (تشغيل/إيقاف بس) ─── */
+  /* ─── اللمس على الفيديو ─── */
   const shield = document.getElementById('playerShield');
   if (shield) {
     shield.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!blackoutActive) togglePlay();
+      if (blackoutActive) return;
+      togglePlayerControls();
     });
     shield.addEventListener('touchend', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!blackoutActive) togglePlay();
+      if (blackoutActive) return;
+      togglePlayerControls();
     }, { passive: false });
+  }
+
+  /* ─── إظهار الأزرار عند لمس أي حاجة ─── */
+  const playerBox = document.querySelector('.modal__box--player');
+  if (playerBox) {
+    playerBox.addEventListener('mousemove', () => {
+      if (!blackoutActive) showPlayerControls();
+    });
+    playerBox.addEventListener('touchstart', (e) => {
+      if (blackoutActive) return;
+      if (e.target.closest('.player-action') ||
+          e.target.closest('.player-progress') ||
+          e.target.closest('.player-close')) {
+        showPlayerControls();
+      }
+    }, { passive: true });
   }
 
   /* ─── شريط التقدم ─── */
@@ -841,6 +946,7 @@ function setupEventListeners() {
       const thumb = document.getElementById('videoProgressThumb');
       if (fill) fill.style.width = `${pct}%`;
       if (thumb) thumb.style.insetInlineStart = `${pct}%`;
+      showPlayerControls();
     };
 
     const onMove = (e) => {
@@ -859,6 +965,7 @@ function setupEventListeners() {
       seekToPercent(pct);
       isDragging = false;
       setTimeout(() => { isSeeking = false; }, 200);
+      showPlayerControls();
     };
 
     progressBar.addEventListener('mousedown', onStart);
@@ -870,7 +977,8 @@ function setupEventListeners() {
   }
 
   /* ─── زر "تم المشاهدة" ─── */
-  document.getElementById('markCompletedBtn')?.addEventListener('click', () => {
+  document.getElementById('markCompletedBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
     if (currentPlayingItem) {
       markItemCompleted(currentPlayingItem.id);
       Toast.success('تم ✅', 'تم تسجيل الدرس كمكتمل');
