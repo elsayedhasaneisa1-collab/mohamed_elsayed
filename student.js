@@ -3,6 +3,51 @@
 let currentUser = null;
 let currentProfile = null;
 
+function splitValues(str) {
+  if (!str) return [];
+  return String(str).split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function hasValue(str, value) {
+  if (!str || !value) return false;
+  return splitValues(str).includes(value);
+}
+
+function isThanwyGrade(grade) {
+  return grade && grade.includes('ثانوي');
+}
+
+function isAzharType(type) {
+  return type === 'أزهر';
+}
+
+function studentSeesItem(item) {
+  const studentGrade = currentProfile.grade;
+  const studentType = currentProfile.type;
+  const studentBranch = currentProfile.branch || '';
+
+  if (!hasValue(item.grade, studentGrade)) return false;
+  if (!hasValue(item.type, studentType)) return false;
+
+  const isAzhar = isAzharType(studentType);
+  const isThanwy = isThanwyGrade(studentGrade);
+
+  if (!isAzhar || !isThanwy) {
+    return true;
+  }
+
+  const itemBranches = splitValues(item.branch);
+  if (!itemBranches.length) {
+    return true;
+  }
+
+  if (!studentBranch) {
+    return true;
+  }
+
+  return itemBranches.includes(studentBranch);
+}
+
 function renderWelcome() {
   const firstName = (currentProfile.full_name || '').split(' ')[0] || 'طالب';
   $('#studentName').textContent = firstName;
@@ -16,30 +61,22 @@ function renderWelcome() {
   $('#studentMeta').textContent = meta;
 }
 
-function gradeMatches(itemGrade, studentGrade) {
-  if (!itemGrade) return false;
-  const list = String(itemGrade).split(',').map(g => g.trim()).filter(Boolean);
-  return list.includes(studentGrade);
-}
-
 async function loadStats() {
   const now = new Date().toISOString();
 
   const [examsRes, assignmentsRes, pendingRes, gradedRes, activeCoursesRes] = await Promise.all([
     supabaseClient
       .from('exams')
-      .select('id, grade', { count: 'exact' })
+      .select('id, grade, type, branch')
       .eq('status', 'published')
       .eq('kind', 'exam')
-      .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
     supabaseClient
       .from('exams')
-      .select('id, grade', { count: 'exact' })
+      .select('id, grade, type, branch')
       .eq('status', 'published')
       .eq('kind', 'assignment')
-      .eq('type', currentProfile.type)
       .gte('closes_at', now),
 
     supabaseClient
@@ -61,8 +98,8 @@ async function loadStats() {
       .eq('status', 'active')
   ]);
 
-  const examsFiltered = (examsRes.data || []).filter(e => gradeMatches(e.grade, currentProfile.grade));
-  const assignmentsFiltered = (assignmentsRes.data || []).filter(e => gradeMatches(e.grade, currentProfile.grade));
+  const examsFiltered = (examsRes.data || []).filter(studentSeesItem);
+  const assignmentsFiltered = (assignmentsRes.data || []).filter(studentSeesItem);
 
   $('#statAvailable').textContent = examsFiltered.length;
   $('#statAssignments').textContent = assignmentsFiltered.length;
@@ -71,15 +108,6 @@ async function loadStats() {
 
   const statCoursesEl = document.getElementById('statCourses');
   if (statCoursesEl) statCoursesEl.textContent = activeCoursesRes.count || 0;
-}
-
-function studentSeesItem(item) {
-  if (!gradeMatches(item.grade, currentProfile.grade)) return false;
-  if (item.type !== currentProfile.type) return false;
-  if (currentProfile.type === 'عام') return true;
-  if (currentProfile.grade.includes('إعدادي')) return true;
-  if (!item.branch) return true;
-  return item.branch === currentProfile.branch;
 }
 
 function setupImageProtection() {
@@ -189,7 +217,6 @@ async function loadCourses() {
       .from('courses')
       .select('id, title, description, cover_url, grade, type, branch')
       .eq('is_published', true)
-      .eq('type', currentProfile.type)
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -199,13 +226,7 @@ async function loadCourses() {
       return;
     }
 
-    const filtered = (courses || []).filter(co => {
-      if (!gradeMatches(co.grade, currentProfile.grade)) return false;
-      if (currentProfile.type === 'عام') return true;
-      if (currentProfile.grade.includes('إعدادي')) return true;
-      if (!co.branch) return true;
-      return co.branch === currentProfile.branch;
-    });
+    const filtered = (courses || []).filter(studentSeesItem);
 
     if (!filtered.length) {
       c.innerHTML = emptyState('fa-book-open', 'مفيش كورسات متاحة', 'استنى لما الأستاذ ينشر كورس لصفك');
@@ -286,7 +307,9 @@ function courseCardStudent(course, enrollment) {
     `;
   }
 
-  const gradesLabel = String(course.grade || '').split(',').map(g => g.trim()).filter(Boolean).join(' / ');
+  const gradesLabel = splitValues(course.grade).join(' / ') || '—';
+  const typesLabel = splitValues(course.type).join(' / ') || 'عام';
+  const branchesLabel = splitValues(course.branch).join(' / ');
 
   return `
     <div class="${cardCls}" data-id="${course.id}">
@@ -298,8 +321,8 @@ function courseCardStudent(course, enrollment) {
         <h3>${escapeHtml(course.title)}</h3>
         ${course.description ? `<p class="course-card-student__desc">${escapeHtml(course.description)}</p>` : ''}
         <div class="course-card-student__meta">
-          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(gradesLabel || '—')}</span>
-          <span><i class="fa-solid fa-school"></i> ${escapeHtml(course.type || 'عام')}${course.branch ? ' - ' + escapeHtml(course.branch) : ''}</span>
+          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(gradesLabel)}</span>
+          <span><i class="fa-solid fa-school"></i> ${escapeHtml(typesLabel)}${branchesLabel ? ' - ' + escapeHtml(branchesLabel) : ''}</span>
         </div>
         <div class="course-card-student__acts">
           ${actionsHtml}
@@ -379,7 +402,6 @@ async function loadAvailableExams() {
     .select('id, title, description, duration_minutes, closes_at, total_marks, grade, type, branch, kind')
     .eq('status', 'published')
     .eq('kind', 'exam')
-    .eq('type', currentProfile.type)
     .gte('closes_at', now)
     .order('closes_at', { ascending: true })
     .limit(100);
@@ -418,7 +440,6 @@ async function loadAssignments() {
     .select('id, title, description, duration_minutes, closes_at, total_marks, grade, type, branch, kind')
     .eq('status', 'published')
     .eq('kind', 'assignment')
-    .eq('type', currentProfile.type)
     .gte('closes_at', now)
     .order('closes_at', { ascending: true })
     .limit(100);

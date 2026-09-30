@@ -29,6 +29,27 @@ let examModalState = {
 };
 
 /* ═══════════════════════════════════════════════════════════════
+   أدوات مساعدة للفصل والدمج
+   ═══════════════════════════════════════════════════════════════ */
+function splitValues(str) {
+  if (!str) return [];
+  return String(str).split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function joinValues(arr) {
+  return (arr || []).filter(Boolean).join(',');
+}
+
+function hasAnyGrade() {
+  return $$('input[name="courseGrade"]:checked').length > 0 ||
+         $$('input[name="grade"]:checked').length > 0;
+}
+
+function hasThanwyGrade(grades) {
+  return (grades || []).some(g => g.includes('ثانوي'));
+}
+
+/* ═══════════════════════════════════════════════════════════════
    الإحصائيات
    ═══════════════════════════════════════════════════════════════ */
 async function loadStats() {
@@ -417,7 +438,9 @@ function courseCard(course) {
     ? '<span class="badge badge--ok"><i class="fa-solid fa-check"></i> منشور</span>'
     : '<span class="badge badge--mut"><i class="fa-solid fa-pen"></i> مسودة</span>';
 
-  const gradesLabel = String(course.grade || '').split(',').map(g => g.trim()).filter(Boolean).join(' / ');
+  const gradesLabel = splitValues(course.grade).join(' / ') || '—';
+  const typesLabel = splitValues(course.type).join(' / ') || 'عام';
+  const branchesLabel = splitValues(course.branch).join(' / ');
 
   return `
     <div class="course-card-admin" data-id="${course.id}">
@@ -430,8 +453,8 @@ function courseCard(course) {
           ${statusBadge}
         </div>
         <div class="course-card-admin__meta">
-          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(gradesLabel || '—')}</span>
-          <span><i class="fa-solid fa-school"></i> ${escapeHtml(course.type || 'عام')}${course.branch ? ' - ' + escapeHtml(course.branch) : ''}</span>
+          <span><i class="fa-solid fa-graduation-cap"></i> ${escapeHtml(gradesLabel)}</span>
+          <span><i class="fa-solid fa-school"></i> ${escapeHtml(typesLabel)}${branchesLabel ? ' - ' + escapeHtml(branchesLabel) : ''}</span>
           <span><i class="fa-solid fa-folder-tree"></i> ${foldersCount} فولدر</span>
         </div>
         <div class="course-card-admin__acts">
@@ -572,11 +595,14 @@ async function loadCourseForEdit(courseId) {
     document.getElementById('courseDesc').value = course.description || '';
     document.getElementById('courseCoverUrl').value = course.cover_url || '';
 
-    const courseGrades = String(course.grade || '').split(',').map(g => g.trim()).filter(Boolean);
+    const courseGrades = splitValues(course.grade);
     $$('input[name="courseGrade"]').forEach(i => i.checked = courseGrades.includes(i.value));
 
-    $$('input[name="courseType"]').forEach(i => i.checked = (i.value === course.type));
-    $$('input[name="courseBranch"]').forEach(i => i.checked = (i.value === course.branch));
+    const courseTypes = splitValues(course.type);
+    $$('input[name="courseType"]').forEach(i => i.checked = courseTypes.includes(i.value));
+
+    const courseBranches = splitValues(course.branch);
+    $$('input[name="courseBranch"]').forEach(i => i.checked = courseBranches.includes(i.value));
 
     updateCourseBranchesVisibility();
 
@@ -598,7 +624,7 @@ function updateCourseBranchesVisibility() {
   const grades = $$('input[name="courseGrade"]:checked').map(i => i.value);
 
   const hasAzhar = types.includes('أزهر');
-  const hasThanwy = grades.some(g => g.includes('ثانوي'));
+  const hasThanwy = hasThanwyGrade(grades);
 
   const section = document.getElementById('courseBranchesSection');
   section.hidden = !(hasAzhar && hasThanwy);
@@ -622,9 +648,9 @@ async function saveCourse() {
     if (!types.length) errs.push('اختر نوع واحد على الأقل');
 
     const hasAzhar = types.includes('أزهر');
-    const hasThanwy = grades.some(g => g.includes('ثانوي'));
+    const hasThanwy = hasThanwyGrade(grades);
     if (hasAzhar && hasThanwy && !branches.length) {
-      errs.push('اختر فرع واحد على الأقل');
+      errs.push('اختر فرع واحد على الأقل (لأن فيه أزهر + ثانوي)');
     }
 
     if (errs.length) {
@@ -635,9 +661,9 @@ async function saveCourse() {
     const payload = {
       title,
       description: description || null,
-      grade: grades.join(','),
-      type: types[0],
-      branch: branches[0] || null,
+      grade: joinValues(grades),
+      type: joinValues(types),
+      branch: branches.length ? joinValues(branches) : null,
       cover_url: coverUrl || null,
       created_by: currentUser.id
     };
@@ -1322,7 +1348,9 @@ function examCard(e) {
     ? '<span class="badge badge--info"><i class="fa-solid fa-clipboard-check"></i> واجب</span>'
     : '<span class="badge badge--gold"><i class="fa-solid fa-file-pen"></i> امتحان</span>';
 
-  const gradesLabel = String(e.grade || '').split(',').map(g => g.trim()).filter(Boolean).join(' / ');
+  const gradesLabel = splitValues(e.grade).join(' / ') || '—';
+  const typesLabel = splitValues(e.type).join(' / ') || 'عام';
+  const branchesLabel = splitValues(e.branch).join(' / ');
 
   return `
     <div class="mcard" data-id="${e.id}">
@@ -1332,8 +1360,8 @@ function examCard(e) {
         ${statusBadge}
       </div>
       <div class="mcard__rows">
-        <div><b>الصف:</b> ${escapeHtml(gradesLabel || '—')}</div>
-        <div><b>النوع:</b> ${escapeHtml(e.type || 'عام')}${e.branch ? ' - ' + escapeHtml(e.branch) : ''}</div>
+        <div><b>الصف:</b> ${escapeHtml(gradesLabel)}</div>
+        <div><b>النوع:</b> ${escapeHtml(typesLabel)}${branchesLabel ? ' - ' + escapeHtml(branchesLabel) : ''}</div>
         <div><b>المدة:</b> ${e.duration_minutes} دقيقة</div>
         <div><b>يفتح:</b> ${formatDate(e.opens_at)}</div>
         <div><b>يقفل:</b> ${formatDate(e.closes_at)}</div>
@@ -2861,7 +2889,7 @@ function updateBranchesVisibility() {
   const grades = $$('input[name="grade"]:checked').map(i => i.value);
 
   const hasAzhar = types.includes('أزهر');
-  const hasThanwy = grades.some(g => g.includes('ثانوي'));
+  const hasThanwy = hasThanwyGrade(grades);
 
   const section = document.getElementById('branchesSection');
   if (section) {
@@ -3084,7 +3112,7 @@ async function saveExam(status = 'draft') {
     if (!closesAt) errs.push('وقت الإغلاق مطلوب');
 
     const hasAzhar = types.includes('أزهر');
-    const hasThanwy = grades.some(g => g.includes('ثانوي'));
+    const hasThanwy = hasThanwyGrade(grades);
     if (hasAzhar && hasThanwy && !branches.length) errs.push('اختر فرع واحد على الأقل');
 
     if (!examModalState.questions.length) errs.push('لازم تضيف سؤال واحد على الأقل');
@@ -3107,8 +3135,9 @@ async function saveExam(status = 'draft') {
 
     const payload = {
       title, description,
-      grade: grades.join(','),
-      type: types[0], branch: branches[0] || null,
+      grade: joinValues(grades),
+      type: joinValues(types),
+      branch: branches.length ? joinValues(branches) : null,
       duration_minutes: duration,
       opens_at: opensISO, closes_at: closesISO,
       total_marks: totalMarks, pass_marks: passMarks,
@@ -3198,11 +3227,14 @@ async function loadExamForEdit(examId) {
       document.getElementById('examClosesAt').value = d.toISOString().slice(0, 16);
     }
 
-    const examGrades = String(exam.grade || '').split(',').map(g => g.trim()).filter(Boolean);
+    const examGrades = splitValues(exam.grade);
     $$('input[name="grade"]').forEach(i => i.checked = examGrades.includes(i.value));
 
-    $$('input[name="type"]').forEach(i => i.checked = (i.value === exam.type));
-    $$('input[name="branch"]').forEach(i => i.checked = (i.value === exam.branch));
+    const examTypes = splitValues(exam.type);
+    $$('input[name="type"]').forEach(i => i.checked = examTypes.includes(i.value));
+
+    const examBranches = splitValues(exam.branch);
+    $$('input[name="branch"]').forEach(i => i.checked = examBranches.includes(i.value));
 
     const kind = exam.kind || 'exam';
     document.querySelector(`input[name="examKind"][value="${kind}"]`).checked = true;
